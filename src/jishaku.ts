@@ -1,43 +1,32 @@
-import { resolveCommand } from "./commands/registry";
-import { statusCommand } from "./commands/root";
-import { Context } from "./context";
-import { OwnerResolver } from "./owners";
-import { SecretScrubber } from "./security";
-import {
-  buildCodeModal,
-  CODE_FIELD_ID,
-  CODE_SUBCOMMANDS,
-  subcommandFromModalId,
-} from "./slash";
-import type {
-  AnyClient,
-  AnyInteraction,
-  AnyMessage,
-  JishakuConfig,
-  ResolvedConfig,
-} from "./types";
-import { escapeCodeblock, redactToken } from "./util/format";
-import { checkForUpdate, DJSK_VERSION } from "./util/meta";
+import { resolveCommand } from './commands/registry'
+import { statusCommand } from './commands/root'
+import { Context } from './context'
+import { OwnerResolver } from './owners'
+import { SecretScrubber } from './security'
+import { buildCodeModal, CODE_FIELD_ID, CODE_SUBCOMMANDS, subcommandFromModalId } from './slash'
+import type { AnyClient, AnyInteraction, AnyMessage, JishakuConfig, ResolvedConfig } from './types'
+import { escapeCodeblock, redactToken } from './util/format'
+import { checkForUpdate, DJSK_VERSION } from './util/meta'
 
 /** A tracked, potentially long-running djsk command invocation. */
 export interface CommandTask {
   /** Monotonic index used to reference the task in `jsk tasks` / `jsk cancel`. */
-  index: number;
+  index: number
   /** The resolved command name. */
-  command: string;
+  command: string
   /** When the task was submitted. */
-  invokedAt: Date;
+  invokedAt: Date
   /** Cancellation hook (kills the shell process, aborts the loop, ...). */
-  cancel?: () => void;
+  cancel?: () => void
 }
 
-const ROOT_NAMES = ["jsk", "jishaku"];
+const ROOT_NAMES = ['jsk', 'jishaku']
 
 /** Splits the post-root text into the subcommand name and the verbatim remainder. */
 function splitCommand(rest: string): { name: string; rawArgs: string } {
-  const match = rest.match(/^(\S+)\s*([\s\S]*)$/);
-  if (!match) return { name: "", rawArgs: "" };
-  return { name: match[1], rawArgs: match[2] };
+  const match = rest.match(/^(\S+)\s*([\s\S]*)$/)
+  if (!match) return { name: '', rawArgs: '' }
+  return { name: match[1], rawArgs: match[2] }
 }
 
 /**
@@ -47,26 +36,26 @@ function splitCommand(rest: string): { name: string; rawArgs: string } {
 // biome-ignore lint/suspicious/noExplicitAny: interaction option resolvers are duck-typed across libraries.
 function extractOptionArgs(raw: any, subcommand: string): string {
   switch (subcommand) {
-    case "cat":
-      return raw.options.getString("path") ?? "";
-    case "curl":
-      return raw.options.getString("url") ?? "";
-    case "cancel":
-      return raw.options.getString("index") ?? "";
-    case "retain":
-      return raw.options.getString("toggle") ?? "";
+    case 'cat':
+      return raw.options.getString('path') ?? ''
+    case 'curl':
+      return raw.options.getString('url') ?? ''
+    case 'cancel':
+      return raw.options.getString('index') ?? ''
+    case 'retain':
+      return raw.options.getString('toggle') ?? ''
     default:
-      return "";
+      return ''
   }
 }
 
 function resolveConfig(config: JishakuConfig): ResolvedConfig {
   return {
-    prefix: config.prefix ?? ".",
+    prefix: config.prefix ?? '.',
     owners: config.owners ?? null,
-    encoding: config.encoding ?? "UTF-8",
+    encoding: config.encoding ?? 'UTF-8',
     consoleLog: config.consoleLog ?? true,
-    slashCommandName: config.slashCommandName ?? "jsk",
+    slashCommandName: config.slashCommandName ?? 'jsk',
     shellTimeout: config.shellTimeout ?? 120_000,
     exitOnShutdown: config.exitOnShutdown ?? false,
     security: config.security ?? false,
@@ -76,7 +65,7 @@ function resolveConfig(config: JishakuConfig): ResolvedConfig {
     shell: config.shell ?? null,
     evalModuleDir: config.evalModuleDir ?? process.cwd(),
     catchProcessErrors: config.catchProcessErrors ?? true,
-  };
+  }
 }
 
 /**
@@ -98,36 +87,34 @@ function resolveConfig(config: JishakuConfig): ResolvedConfig {
 // the module comment in types.ts). Internally these are cast back to the fallback types (or
 // `any`) since djsk only ever duck-types them at runtime anyway.
 export class Jishaku<C = AnyClient> {
-  readonly config: ResolvedConfig;
-  readonly owners: OwnerResolver;
-  private readonly scrubber: SecretScrubber;
+  readonly config: ResolvedConfig
+  readonly owners: OwnerResolver
+  private readonly scrubber: SecretScrubber
 
   /** Whether REPL variable retention is enabled (`jsk retain`). */
-  retain = false;
+  retain = false
   /** Persistent bag of user variables for the REPL when retention is on. */
-  replVars: Record<string, unknown> = {};
+  replVars: Record<string, unknown> = {}
   /** The last REPL result, exposed as `_` inside `jsk js`. */
-  lastResult: unknown = null;
+  lastResult: unknown = null
 
-  private readonly taskList: CommandTask[] = [];
-  private taskCounter = 0;
+  private readonly taskList: CommandTask[] = []
+  private taskCounter = 0
 
   constructor(
     readonly client: C,
     config: JishakuConfig = {},
   ) {
-    this.config = resolveConfig(config);
-    this.owners = new OwnerResolver(client, this.config.owners);
+    this.config = resolveConfig(config)
+    this.owners = new OwnerResolver(client, this.config.owners)
     this.scrubber = new SecretScrubber(client, {
       patterns: this.config.secretPatterns,
       values: this.config.secretValues,
-    });
+    })
 
     if (this.config.consoleLog) {
-      const security = this.config.security ? " (security mode ON)" : "";
-      console.info(
-        `[djsk] Initialized. Root command: ${this.config.prefix}jsk${security}`,
-      );
+      const security = this.config.security ? ' (security mode ON)' : ''
+      console.info(`[djsk] Initialized. Root command: ${this.config.prefix}jsk${security}`)
 
       // Fire-and-forget: never blocks startup on a registry round-trip, and checkForUpdate
       // never throws — a failed/offline check just means no notice, not a crash.
@@ -135,14 +122,14 @@ export class Jishaku<C = AnyClient> {
         if (result && !result.isLatest) {
           console.info(
             `[djsk] A new version is available! Current: ${DJSK_VERSION}, Latest: ${result.latestVersion}. Update: npm i djsk@latest`,
-          );
+          )
         }
-      });
+      })
     }
 
     if (this.config.catchProcessErrors) {
-      process.on("uncaughtException", this.handleProcessError);
-      process.on("unhandledRejection", this.handleProcessError);
+      process.on('uncaughtException', this.handleProcessError)
+      process.on('unhandledRejection', this.handleProcessError)
     }
   }
 
@@ -153,15 +140,11 @@ export class Jishaku<C = AnyClient> {
    * bound reference is used for both `process.on` calls above.
    */
   private readonly handleProcessError = (error: unknown): void => {
-    const text =
-      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    const text = error instanceof Error ? (error.stack ?? error.message) : String(error)
     if (this.config.consoleLog) {
-      console.error(
-        "[djsk] Uncaught error (process kept alive):",
-        this.scrub(text),
-      );
+      console.error('[djsk] Uncaught error (process kept alive):', this.scrub(text))
     }
-  };
+  }
 
   /**
    * Removes the process-wide `uncaughtException`/`unhandledRejection` listeners installed by
@@ -176,8 +159,8 @@ export class Jishaku<C = AnyClient> {
    * so listeners (and instances) don't accumulate across the process's lifetime.
    */
   destroy(): void {
-    process.off("uncaughtException", this.handleProcessError);
-    process.off("unhandledRejection", this.handleProcessError);
+    process.off('uncaughtException', this.handleProcessError)
+    process.off('unhandledRejection', this.handleProcessError)
   }
 
   /**
@@ -189,32 +172,32 @@ export class Jishaku<C = AnyClient> {
    */
   scrub(text: string): string {
     // biome-ignore lint/suspicious/noExplicitAny: token location is stable across libraries.
-    const out = redactToken(text, (this.client as any)?.token);
-    return this.config.security ? this.scrubber.scrub(out) : out;
+    const out = redactToken(text, (this.client as any)?.token)
+    return this.config.security ? this.scrubber.scrub(out) : out
   }
 
   /** Currently tracked tasks, oldest first. */
   get tasks(): readonly CommandTask[] {
-    return this.taskList;
+    return this.taskList
   }
 
   /** Registers a task and returns it. Call {@link removeTask} when it finishes. */
   submitTask(command: string, cancel?: () => void): CommandTask {
-    this.taskCounter += 1;
+    this.taskCounter += 1
     const task: CommandTask = {
       index: this.taskCounter,
       command,
       invokedAt: new Date(),
       cancel,
-    };
-    this.taskList.push(task);
-    return task;
+    }
+    this.taskList.push(task)
+    return task
   }
 
   /** Removes a previously submitted task. */
   removeTask(task: CommandTask): void {
-    const index = this.taskList.indexOf(task);
-    if (index !== -1) this.taskList.splice(index, 1);
+    const index = this.taskList.indexOf(task)
+    if (index !== -1) this.taskList.splice(index, 1)
   }
 
   /**
@@ -225,38 +208,33 @@ export class Jishaku<C = AnyClient> {
    */
   async onMessageCreated<M = AnyMessage>(message: M): Promise<void> {
     // biome-ignore lint/suspicious/noExplicitAny: content/author are duck-typed across libraries.
-    const raw = message as any;
-    const content: unknown = raw?.content;
-    if (typeof content !== "string") return;
+    const raw = message as any
+    const content: unknown = raw?.content
+    if (typeof content !== 'string') return
 
-    const rest = this.matchRoot(content);
-    if (rest === null) return;
+    const rest = this.matchRoot(content)
+    if (rest === null) return
 
-    const authorId = raw.author?.id;
-    if (!authorId) return;
-    if (!(await this.owners.isOwner(String(authorId)))) return;
+    const authorId = raw.author?.id
+    if (!authorId) return
+    if (!(await this.owners.isOwner(String(authorId)))) return
 
-    const { name, rawArgs } = splitCommand(rest);
-    const source = { kind: "message" as const, message: raw as AnyMessage };
+    const { name, rawArgs } = splitCommand(rest)
+    const source = { kind: 'message' as const, message: raw as AnyMessage }
 
-    if (name === "") {
-      await this.run(new Context(this, source, "", ""), statusCommand);
-      return;
+    if (name === '') {
+      await this.run(new Context(this, source, '', ''), statusCommand)
+      return
     }
 
-    const command = resolveCommand(name);
+    const command = resolveCommand(name)
     if (!command) {
-      const ctx = new Context(this, source, name, rawArgs);
-      await ctx.send(
-        `Unknown command \`${name}\`. Try \`${this.config.prefix}jsk help\`.`,
-      );
-      return;
+      const ctx = new Context(this, source, name, rawArgs)
+      await ctx.send(`Unknown command \`${name}\`. Try \`${this.config.prefix}jsk help\`.`)
+      return
     }
 
-    await this.run(
-      new Context(this, source, command.name, rawArgs),
-      command.handler,
-    );
+    await this.run(new Context(this, source, command.name, rawArgs), command.handler)
   }
 
   /**
@@ -268,89 +246,75 @@ export class Jishaku<C = AnyClient> {
    */
   async onInteractionCreate<I = AnyInteraction>(interaction: I): Promise<void> {
     // biome-ignore lint/suspicious/noExplicitAny: interaction shapes are duck-typed across libraries.
-    const raw = interaction as any;
+    const raw = interaction as any
 
     const isModalSubmit =
-      typeof raw.isModalSubmit === "function"
-        ? raw.isModalSubmit()
-        : raw.type === 5;
+      typeof raw.isModalSubmit === 'function' ? raw.isModalSubmit() : raw.type === 5
     if (isModalSubmit) {
-      await this.handleModalSubmit(raw);
-      return;
+      await this.handleModalSubmit(raw)
+      return
     }
 
     const isChatInput =
-      typeof raw.isChatInputCommand === "function"
+      typeof raw.isChatInputCommand === 'function'
         ? raw.isChatInputCommand()
-        : typeof raw.isCommand === "function"
+        : typeof raw.isCommand === 'function'
           ? raw.isCommand()
-          : raw.type === 2;
-    if (!isChatInput || raw.commandName !== this.config.slashCommandName)
-      return;
+          : raw.type === 2
+    if (!isChatInput || raw.commandName !== this.config.slashCommandName) return
 
-    const userId = raw.user?.id;
-    if (!userId) return;
+    const userId = raw.user?.id
+    if (!userId) return
     if (!(await this.owners.isOwner(String(userId)))) {
       try {
         await raw.reply({
-          content: "You are not allowed to use this command.",
+          content: 'You are not allowed to use this command.',
           ephemeral: true,
-        });
+        })
       } catch {
         // ignore
       }
-      return;
+      return
     }
 
-    const subcommand: string = raw.options.getSubcommand();
+    const subcommand: string = raw.options.getSubcommand()
 
     if (CODE_SUBCOMMANDS.has(subcommand)) {
-      await raw.showModal(
-        buildCodeModal(subcommand as "js" | "cjs" | "mjs" | "sh"),
-      );
-      return;
+      await raw.showModal(buildCodeModal(subcommand as 'js' | 'cjs' | 'mjs' | 'sh'))
+      return
     }
 
-    const source = { kind: "interaction" as const, interaction: raw };
-    const rawArgs = extractOptionArgs(raw, subcommand);
+    const source = { kind: 'interaction' as const, interaction: raw }
+    const rawArgs = extractOptionArgs(raw, subcommand)
 
-    if (subcommand === "status") {
-      await this.deferAndRun(
-        new Context(this, source, "", rawArgs),
-        statusCommand,
-      );
-      return;
+    if (subcommand === 'status') {
+      await this.deferAndRun(new Context(this, source, '', rawArgs), statusCommand)
+      return
     }
 
-    const command = resolveCommand(subcommand);
-    if (!command) return; // Shouldn't happen: Discord only sends subcommands we registered.
+    const command = resolveCommand(subcommand)
+    if (!command) return // Shouldn't happen: Discord only sends subcommands we registered.
 
-    await this.deferAndRun(
-      new Context(this, source, command.name, rawArgs),
-      command.handler,
-    );
+    await this.deferAndRun(new Context(this, source, command.name, rawArgs), command.handler)
   }
 
   /** Handles the submission of a `js`/`sh` code-input modal shown by {@link onInteractionCreate}. */
   private async handleModalSubmit(raw: AnyInteraction): Promise<void> {
     // biome-ignore lint/suspicious/noExplicitAny: interaction shapes are duck-typed across libraries.
-    const modal = raw as any;
-    const subcommand = subcommandFromModalId(modal.customId ?? "");
-    if (!subcommand) return;
+    const modal = raw as any
+    const subcommand = subcommandFromModalId(modal.customId ?? '')
+    if (!subcommand) return
 
-    const userId = modal.user?.id;
-    if (!userId) return;
-    if (!(await this.owners.isOwner(String(userId)))) return;
+    const userId = modal.user?.id
+    if (!userId) return
+    if (!(await this.owners.isOwner(String(userId)))) return
 
-    const command = resolveCommand(subcommand);
-    if (!command) return;
+    const command = resolveCommand(subcommand)
+    if (!command) return
 
-    const code: string = modal.fields.getTextInputValue(CODE_FIELD_ID);
-    const source = { kind: "interaction" as const, interaction: modal };
-    await this.deferAndRun(
-      new Context(this, source, command.name, code),
-      command.handler,
-    );
+    const code: string = modal.fields.getTextInputValue(CODE_FIELD_ID)
+    const source = { kind: 'interaction' as const, interaction: modal }
+    await this.deferAndRun(new Context(this, source, command.name, code), command.handler)
   }
 
   /** Defers the interaction's reply, then runs `handler`, matching message-based error handling. */
@@ -359,44 +323,39 @@ export class Jishaku<C = AnyClient> {
     handler: (ctx: Context) => Promise<void> | void,
   ): Promise<void> {
     try {
-      await ctx.interaction?.deferReply();
+      await ctx.interaction?.deferReply()
     } catch {
       // Already acknowledged (e.g. by a fast handler racing us); proceed regardless.
     }
-    await this.run(ctx, handler);
+    await this.run(ctx, handler)
   }
 
   /** Returns the text after the root command, or `null` if the message isn't a djsk invocation. */
   private matchRoot(content: string): string | null {
     for (const root of ROOT_NAMES) {
-      const full = this.config.prefix + root;
-      if (content === full) return "";
+      const full = this.config.prefix + root
+      if (content === full) return ''
       if (content.startsWith(`${full} `) || content.startsWith(`${full}\n`)) {
-        return content.slice(full.length).replace(/^\s+/, "");
+        return content.slice(full.length).replace(/^\s+/, '')
       }
     }
-    return null;
+    return null
   }
 
-  private async run(
-    ctx: Context,
-    handler: (ctx: Context) => Promise<void> | void,
-  ): Promise<void> {
+  private async run(ctx: Context, handler: (ctx: Context) => Promise<void> | void): Promise<void> {
     try {
-      await handler(ctx);
+      await handler(ctx)
     } catch (error) {
-      await this.reportError(ctx, error);
+      await this.reportError(ctx, error)
     }
   }
 
   private async reportError(ctx: Context, error: unknown): Promise<void> {
-    const text =
-      error instanceof Error ? (error.stack ?? error.message) : String(error);
-    if (this.config.consoleLog)
-      console.error("[djsk] Command error:", this.scrub(text));
-    await ctx.react("‼️");
+    const text = error instanceof Error ? (error.stack ?? error.message) : String(error)
+    if (this.config.consoleLog) console.error('[djsk] Command error:', this.scrub(text))
+    await ctx.react('‼️')
     try {
-      await ctx.sendCodeblock(escapeCodeblock(text), "js", "error.txt");
+      await ctx.sendCodeblock(escapeCodeblock(text), 'js', 'error.txt')
     } catch {
       // Reporting failed (e.g. missing permissions); nothing more we can do.
     }

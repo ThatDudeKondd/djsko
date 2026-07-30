@@ -1,8 +1,8 @@
-import chalk from "chalk";
-import { Command } from "commander";
-import { consola } from "consola";
-import { fetchApplicationId, resolveDiscordJsRange } from "./cli/discord-api";
-import { detectPackageManager } from "./cli/package-manager";
+import chalk from 'chalk'
+import { Command } from 'commander'
+import { consola } from 'consola'
+import { fetchApplicationId, resolveDiscordJsRange } from './cli/discord-api'
+import { detectPackageManager } from './cli/package-manager'
 import {
   promptBotOrSelfbot,
   promptCommandMode,
@@ -15,46 +15,39 @@ import {
   promptSecurity,
   promptSelfbotLibrary,
   promptToken,
-} from "./cli/prompts";
-import {
-  derivePackageName,
-  isNonEmptyDirectory,
-  scaffold,
-} from "./cli/scaffold";
-import { printSummary } from "./cli/summary";
-import type { Answers } from "./cli/types";
-import { DJSK_VERSION } from "./util/meta";
+} from './cli/prompts'
+import { derivePackageName, isNonEmptyDirectory, scaffold } from './cli/scaffold'
+import { printSummary } from './cli/summary'
+import type { Answers } from './cli/types'
+import { DJSK_VERSION } from './util/meta'
 
-async function collectAnswers(
-  directoryArg: string | undefined,
-): Promise<Answers> {
-  const directory = await promptDirectory(directoryArg);
+async function collectAnswers(directoryArg: string | undefined): Promise<Answers> {
+  const directory = await promptDirectory(directoryArg)
 
   if (await isNonEmptyDirectory(directory)) {
-    const proceed = await promptOverwriteConfirm(directory);
+    const proceed = await promptOverwriteConfirm(directory)
     if (!proceed) {
-      consola.info("Aborted.");
-      process.exit(0);
+      consola.info('Aborted.')
+      process.exit(0)
     }
   }
 
-  const kind = await promptBotOrSelfbot();
-  const format = await promptFileFormat();
-  const token = await promptToken(kind);
-  const security = await promptSecurity();
-  const owners = await promptOwners();
-  const prefix = await promptPrefix();
-  const projectName = derivePackageName(directory);
+  const kind = await promptBotOrSelfbot()
+  const format = await promptFileFormat()
+  const token = await promptToken(kind)
+  const security = await promptSecurity()
+  const owners = await promptOwners()
+  const prefix = await promptPrefix()
+  const projectName = derivePackageName(directory)
 
-  if (kind === "bot") {
-    const discordVersion = await promptDiscordVersion();
-    const discordJsRange = await resolveDiscordJsRange(discordVersion);
-    const commandMode = await promptCommandMode();
-    const clientId =
-      commandMode !== "text" && token ? await fetchApplicationId(token) : null;
+  if (kind === 'bot') {
+    const discordVersion = await promptDiscordVersion()
+    const discordJsRange = await resolveDiscordJsRange(discordVersion)
+    const commandMode = await promptCommandMode()
+    const clientId = commandMode !== 'text' && token ? await fetchApplicationId(token) : null
 
     return {
-      kind: "bot",
+      kind: 'bot',
       directory,
       projectName,
       format,
@@ -66,13 +59,13 @@ async function collectAnswers(
       discordJsRange,
       commandMode,
       clientId,
-    };
+    }
   }
 
-  const library = await promptSelfbotLibrary();
+  const library = await promptSelfbotLibrary()
 
   return {
-    kind: "selfbot",
+    kind: 'selfbot',
     directory,
     projectName,
     format,
@@ -81,32 +74,32 @@ async function collectAnswers(
     owners,
     prefix,
     library,
-  };
+  }
 }
 
 async function createAction(directoryArg: string | undefined): Promise<void> {
-  consola.log(chalk.bold.cyan("\ndjsk create — scaffold a jishaku project\n"));
+  consola.log(chalk.bold.cyan('\ndjsk create — scaffold a jishaku project\n'))
 
-  const answers = await collectAnswers(directoryArg);
-  const writtenFiles = await scaffold(answers, DJSK_VERSION);
-  printSummary(answers, writtenFiles, detectPackageManager());
+  const answers = await collectAnswers(directoryArg)
+  const writtenFiles = await scaffold(answers, DJSK_VERSION)
+  printSummary(answers, writtenFiles, detectPackageManager())
 }
 
-const program = new Command();
+const program = new Command()
 
-program.name("djsk").description("djsk CLI").version(DJSK_VERSION);
+program.name('djsk').description('djsk CLI').version(DJSK_VERSION)
 
 program
-  .command("create")
-  .description("Scaffold a new djsk (bot or selfbot) project")
-  .argument("[directory]", "target directory (prompted for if omitted)")
+  .command('create')
+  .description('Scaffold a new djsk (bot or selfbot) project')
+  .argument('[directory]', 'target directory (prompted for if omitted)')
   .action(async (directory: string | undefined) => {
     try {
-      await createAction(directory);
+      await createAction(directory)
     } catch (error) {
-      consola.error(error instanceof Error ? error.message : error);
-      process.exit(1);
+      consola.error(error instanceof Error ? error.message : error)
+      process.exit(1)
     }
-  });
+  })
 
-program.parseAsync(process.argv);
+program.parseAsync(process.argv)
