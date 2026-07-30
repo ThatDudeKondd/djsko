@@ -1,12 +1,16 @@
-import { createRequire } from 'node:module'
-import vm from 'node:vm'
-import type { Context } from '../context'
-import { installPrototypeGuards, installRestGuard } from '../prototype-guard'
-import { guardOutbound } from '../security'
-import { inspectResult, MESSAGE_LIMIT, stripAnsi } from '../util/format'
-import { loadLibraryModule } from '../util/meta'
+import { createRequire } from "node:module";
+import vm from "node:vm";
+import type { Context } from "../context";
+import { installPrototypeGuards, installRestGuard } from "../prototype-guard";
+import { guardOutbound } from "../security";
+import { inspectResult, MESSAGE_LIMIT, stripAnsi } from "../util/format";
+import { loadLibraryModule } from "../util/meta";
 
-const GUARDED_CHILD_PROCESS_METHODS = new Set(['execSync', 'execFileSync', 'spawnSync'])
+const GUARDED_CHILD_PROCESS_METHODS = new Set([
+  "execSync",
+  "execFileSync",
+  "spawnSync",
+]);
 
 /**
  * Wraps `fn` (one of `child_process`'s `execSync`/`execFileSync`/`spawnSync`) so a call that
@@ -27,14 +31,15 @@ const GUARDED_CHILD_PROCESS_METHODS = new Set(['execSync', 'execFileSync', 'spaw
 function withDefaultTimeout(fn: (...args: any[]) => any, timeoutMs: number) {
   // biome-ignore lint/suspicious/noExplicitAny: see above.
   return (...args: any[]) => {
-    const last = args[args.length - 1]
-    if (last !== null && typeof last === 'object' && !Array.isArray(last)) {
-      if (last.timeout === undefined) args[args.length - 1] = { ...last, timeout: timeoutMs }
+    const last = args[args.length - 1];
+    if (last !== null && typeof last === "object" && !Array.isArray(last)) {
+      if (last.timeout === undefined)
+        args[args.length - 1] = { ...last, timeout: timeoutMs };
     } else {
-      args.push({ timeout: timeoutMs })
+      args.push({ timeout: timeoutMs });
     }
-    return fn(...args)
-  }
+    return fn(...args);
+  };
 }
 
 /**
@@ -48,16 +53,19 @@ function withDefaultTimeout(fn: (...args: any[]) => any, timeoutMs: number) {
  * that boundary, so every consumer of this module needs its own wrap at its own entry point
  * rather than one shared patch.
  */
-function guardChildProcessModule<T extends object>(module: T, evalTimeoutMs: number): T {
+function guardChildProcessModule<T extends object>(
+  module: T,
+  evalTimeoutMs: number,
+): T {
   return new Proxy(module, {
     get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver)
-      return typeof prop === 'string' && GUARDED_CHILD_PROCESS_METHODS.has(prop)
+      const value = Reflect.get(target, prop, receiver);
+      return typeof prop === "string" && GUARDED_CHILD_PROCESS_METHODS.has(prop)
         ? // biome-ignore lint/suspicious/noExplicitAny: `T` is an opaque module shape here; the actual signature is forwarded verbatim by withDefaultTimeout.
           withDefaultTimeout(value as (...args: any[]) => any, evalTimeoutMs)
-        : value
+        : value;
     },
-  })
+  });
 }
 
 /**
@@ -74,11 +82,11 @@ function guardChildProcessModule<T extends object>(module: T, evalTimeoutMs: num
  */
 export function createDynamicImport(evalTimeoutMs: number) {
   return async (specifier: string) => {
-    const imported = await import(specifier)
-    return specifier === 'node:child_process' || specifier === 'child_process'
+    const imported = await import(specifier);
+    return specifier === "node:child_process" || specifier === "child_process"
       ? guardChildProcessModule(imported, evalTimeoutMs)
-      : imported
-  }
+      : imported;
+  };
 }
 
 /**
@@ -98,17 +106,17 @@ export function createGuardedRequire(
   evalTimeoutMs: number,
 ): NodeJS.Require {
   const guarded = ((specifier: string) => {
-    const resolved = realRequire(specifier)
-    return specifier === 'node:child_process' || specifier === 'child_process'
+    const resolved = realRequire(specifier);
+    return specifier === "node:child_process" || specifier === "child_process"
       ? guardChildProcessModule(resolved, evalTimeoutMs)
-      : resolved
-  }) as NodeJS.Require
-  return Object.assign(guarded, realRequire)
+      : resolved;
+  }) as NodeJS.Require;
+  return Object.assign(guarded, realRequire);
 }
 
 // Anchor path is arbitrary — only ever used to `require('node:child_process')`, a builtin that
 // resolves without touching the filesystem, so it doesn't matter that this path may not exist.
-const moduleRequire = createRequire(process.cwd())
+const moduleRequire = createRequire(process.cwd());
 
 /**
  * Temporarily patches the real, shared `node:child_process` module's execSync/execFileSync/
@@ -137,22 +145,27 @@ const moduleRequire = createRequire(process.cwd())
  * this at the same time would race and could hand one eval the other's timeout, an accepted
  * trade-off for a bot-owner debug tool rather than a general-purpose sandbox.
  */
-export function installChildProcessTimeoutGuard(evalTimeoutMs: number): () => void {
+export function installChildProcessTimeoutGuard(
+  evalTimeoutMs: number,
+): () => void {
   // biome-ignore lint/suspicious/noExplicitAny: mutating an opaque, dynamically-`require`d module object.
-  const cp = moduleRequire('node:child_process') as Record<string, (...args: any[]) => any>
-  const originals = new Map<string, (...args: unknown[]) => unknown>()
+  const cp = moduleRequire("node:child_process") as Record<
+    string,
+    (...args: any[]) => any
+  >;
+  const originals = new Map<string, (...args: unknown[]) => unknown>();
 
   for (const method of GUARDED_CHILD_PROCESS_METHODS) {
-    const original = cp[method]
-    originals.set(method, original)
-    cp[method] = withDefaultTimeout(original, evalTimeoutMs)
+    const original = cp[method];
+    originals.set(method, original);
+    cp[method] = withDefaultTimeout(original, evalTimeoutMs);
   }
 
   return () => {
     for (const [method, original] of originals) {
-      cp[method] = original
+      cp[method] = original;
     }
-  }
+  };
 }
 
 /**
@@ -176,27 +189,30 @@ export function compile(
   argsKey: string,
   filename: string,
 ): vm.Script {
-  const params = argNames.join(', ')
-  const invocation = `.apply(null, globalThis[${JSON.stringify(argsKey)}])`
-  return new vm.Script(`(async function (${params}) {\n${code}\n})${invocation}`, { filename })
+  const params = argNames.join(", ");
+  const invocation = `.apply(null, globalThis[${JSON.stringify(argsKey)}])`;
+  return new vm.Script(
+    `(async function (${params}) {\n${code}\n})${invocation}`,
+    { filename },
+  );
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: structural Message check across libraries.
 export function isMessage(value: any): boolean {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    'author' in value &&
-    typeof value.react === 'function' &&
-    ('url' in value || 'id' in value)
-  )
+    "author" in value &&
+    typeof value.react === "function" &&
+    ("url" in value || "id" in value)
+  );
 }
 
 /** Thrown to unwind an eval that was stopped via `jsk cancel`. */
 export class EvalCancelledError extends Error {
   constructor() {
-    super('Cancelled via jsk cancel.')
-    this.name = 'EvalCancelledError'
+    super("Cancelled via jsk cancel.");
+    this.name = "EvalCancelledError";
   }
 }
 
@@ -229,8 +245,8 @@ export class EvalCancelledError extends Error {
  */
 export class EvalTimedOutError extends Error {
   constructor(timeoutMs: number) {
-    super(`Synchronous execution exceeded ${timeoutMs}ms and was terminated.`)
-    this.name = 'EvalTimedOutError'
+    super(`Synchronous execution exceeded ${timeoutMs}ms and was terminated.`);
+    this.name = "EvalTimedOutError";
   }
 }
 
@@ -246,26 +262,29 @@ export class EvalTimedOutError extends Error {
  * loop with an `await` in it, a Discord call that never comes back, `await new Promise(() =>
  * {})`, ...).
  */
-export function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(new EvalCancelledError())
+export function raceAbort<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  if (signal.aborted) return Promise.reject(new EvalCancelledError());
 
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new EvalCancelledError())
-    signal.addEventListener('abort', onAbort, { once: true })
+    const onAbort = () => reject(new EvalCancelledError());
+    signal.addEventListener("abort", onAbort, { once: true });
     promise.then(
       (value) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
       },
       (error) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
       },
-    )
-  })
+    );
+  });
 }
 
-type WriteFn = typeof process.stdout.write
+type WriteFn = typeof process.stdout.write;
 
 /**
  * Temporarily wraps `process.stdout`/`process.stderr`'s `write()`, so an eval command can
@@ -283,12 +302,14 @@ type WriteFn = typeof process.stdout.write
  * concurrently would see each other's output in their capture — an accepted trade-off for a
  * single-owner debug tool.
  */
-export function captureTerminalOutput(scrub: ((text: string) => string) | null): {
-  restore: () => string
+export function captureTerminalOutput(
+  scrub: ((text: string) => string) | null,
+): {
+  restore: () => string;
 } {
-  const chunks: string[] = []
-  const originalStdoutWrite: WriteFn = process.stdout.write
-  const originalStderrWrite: WriteFn = process.stderr.write
+  const chunks: string[] = [];
+  const originalStdoutWrite: WriteFn = process.stdout.write;
+  const originalStderrWrite: WriteFn = process.stderr.write;
 
   // Calls the original via `.apply(stream, ...)` rather than a pre-bound reference, so
   // `restore()` can put back the exact original function (not a `.bind()` wrapper around
@@ -297,31 +318,31 @@ export function captureTerminalOutput(scrub: ((text: string) => string) | null):
     (stream: NodeJS.WriteStream, original: WriteFn): WriteFn =>
     (chunk: unknown, ...rest: unknown[]) => {
       const text =
-        typeof chunk === 'string'
+        typeof chunk === "string"
           ? chunk
           : Buffer.isBuffer(chunk)
-            ? chunk.toString('utf-8')
-            : String(chunk)
+            ? chunk.toString("utf-8")
+            : String(chunk);
       // Stripped for the Discord-bound capture only — colors are decided by whether the
       // *real* stdout/stderr is a TTY, which has nothing to do with whether this is headed to
       // Discord (not a terminal), so raw escape codes would otherwise show up as literal
       // garbage (see stripAnsi's doc comment). The real stream output is left untouched.
-      chunks.push(stripAnsi(text))
-      const outgoing = scrub ? scrub(text) : chunk
+      chunks.push(stripAnsi(text));
+      const outgoing = scrub ? scrub(text) : chunk;
       // biome-ignore lint/suspicious/noExplicitAny: forwarding Node's overloaded write(chunk, encoding?, callback?) verbatim.
-      return (original as any).apply(stream, [outgoing, ...rest])
-    }
+      return (original as any).apply(stream, [outgoing, ...rest]);
+    };
 
-  process.stdout.write = wrap(process.stdout, originalStdoutWrite)
-  process.stderr.write = wrap(process.stderr, originalStderrWrite)
+  process.stdout.write = wrap(process.stdout, originalStdoutWrite);
+  process.stderr.write = wrap(process.stderr, originalStderrWrite);
 
   return {
     restore: () => {
-      process.stdout.write = originalStdoutWrite
-      process.stderr.write = originalStderrWrite
-      return chunks.join('')
+      process.stdout.write = originalStdoutWrite;
+      process.stderr.write = originalStderrWrite;
+      return chunks.join("");
     },
-  }
+  };
 }
 
 /**
@@ -344,23 +365,23 @@ export async function sendTerminalAndText(
   filename: string,
 ): Promise<void> {
   if (!terminalOutput) {
-    if (text !== null) await ctx.sendResult(text, filename)
-    return
+    if (text !== null) await ctx.sendResult(text, filename);
+    return;
   }
 
-  const codeblock = `\`\`\`\n${terminalOutput}\n\`\`\``
-  const combined = text !== null ? `${codeblock}\n${text}` : codeblock
+  const codeblock = `\`\`\`\n${terminalOutput}\n\`\`\``;
+  const combined = text !== null ? `${codeblock}\n${text}` : codeblock;
 
   // Matches Context.sendResult's own scrubbed-length check, so this decides on the same basis
   // it will (scrubbing doesn't reliably preserve length, and ctx.sendResult scrubs again below
   // regardless — redaction is idempotent, so double-scrubbing is harmless).
   if (ctx.jsk.scrub(combined).length <= MESSAGE_LIMIT) {
-    await ctx.sendResult(combined, filename)
-    return
+    await ctx.sendResult(combined, filename);
+    return;
   }
 
-  await ctx.sendCodeblock(terminalOutput, '', filename)
-  if (text !== null) await ctx.sendResult(text, filename)
+  await ctx.sendCodeblock(terminalOutput, "", filename);
+  if (text !== null) await ctx.sendResult(text, filename);
 }
 
 export async function sendResult(
@@ -373,14 +394,14 @@ export async function sendResult(
       `<Message ${(result as any).url ?? (result as any).id}>`
     : result === undefined
       ? null
-      : inspectResult(result)
+      : inspectResult(result);
 
-  if (!terminalOutput && resultText === null) return
+  if (!terminalOutput && resultText === null) return;
 
   // Routed through sendTerminalAndText (which itself routes through ctx.sendResult/
   // sendCodeblock, not a raw send) so the captured terminal output gets the same token
   // redaction / security-mode secret scrubbing as everything else djsk sends.
-  await sendTerminalAndText(ctx, terminalOutput, resultText, 'output.js')
+  await sendTerminalAndText(ctx, terminalOutput, resultText, "output.js");
 }
 
 /** The common `client`/`message`/... variables injected into every eval flavor's scope. */
@@ -389,7 +410,7 @@ export function buildBaseScope(
   guard: (value: unknown) => unknown,
   controllerSignal: AbortSignal,
 ): Record<string, unknown> {
-  const jsk = ctx.jsk
+  const jsk = ctx.jsk;
   return {
     client: ctx.client,
     bot: ctx.client,
@@ -408,7 +429,7 @@ export function buildBaseScope(
     // poll `signal.aborted` in a loop, for cleaner cancellation than raceAbort alone gives.
     signal: controllerSignal,
     dynamicImport: createDynamicImport(jsk.config.evalTimeout),
-  }
+  };
 }
 
 /**
@@ -416,11 +437,11 @@ export function buildBaseScope(
  * (message, channel, DMs, interactions reachable through them) is scrubbed too.
  */
 export function makeGuard(ctx: Context): (value: unknown) => unknown {
-  const jsk = ctx.jsk
+  const jsk = ctx.jsk;
   return (value: unknown) =>
-    jsk.config.security && value && typeof value === 'object'
+    jsk.config.security && value && typeof value === "object"
       ? guardOutbound(value, (text) => jsk.scrub(text))
-      : value
+      : value;
 }
 
 /**
@@ -431,17 +452,21 @@ export function makeGuard(ctx: Context): (value: unknown) => unknown {
  */
 export async function installSecurityGuards(
   ctx: Context,
-): Promise<{ restoreGuards: (() => void) | null; restoreRestGuard: (() => void) | null }> {
-  const jsk = ctx.jsk
-  if (!jsk.config.security) return { restoreGuards: null, restoreRestGuard: null }
+): Promise<{
+  restoreGuards: (() => void) | null;
+  restoreRestGuard: (() => void) | null;
+}> {
+  const jsk = ctx.jsk;
+  if (!jsk.config.security)
+    return { restoreGuards: null, restoreRestGuard: null };
 
-  const module = await loadLibraryModule()
-  if (!module) return { restoreGuards: null, restoreRestGuard: null }
+  const module = await loadLibraryModule();
+  if (!module) return { restoreGuards: null, restoreRestGuard: null };
 
   return {
     restoreGuards: installPrototypeGuards(module, (text) => jsk.scrub(text)),
     restoreRestGuard: installRestGuard(module, (text) => jsk.scrub(text)),
-  }
+  };
 }
 
 /**
@@ -459,96 +484,106 @@ export async function runVmEval(
   taskName: string,
 ): Promise<void> {
   if (!code.trim()) {
-    await ctx.send('No code to evaluate.')
-    return
+    await ctx.send("No code to evaluate.");
+    return;
   }
 
-  const jsk = ctx.jsk
-  const guard = makeGuard(ctx)
-  const controller = new AbortController()
+  const jsk = ctx.jsk;
+  const guard = makeGuard(ctx);
+  const controller = new AbortController();
   const scope: Record<string, unknown> = {
     ...buildBaseScope(ctx, guard, controller.signal),
     ...extraScope,
-  }
-  const argNames = Object.keys(scope)
-  const argValues = Object.values(scope)
+  };
+  const argNames = Object.keys(scope);
+  const argValues = Object.values(scope);
 
   // Submitted before the (possibly awaiting) security-guard install below: `await` always
   // defers to a microtask tick even when the awaited call resolves synchronously, so
   // registering the task first guarantees it's visible in `jsk tasks`/cancellable via
   // `jsk cancel` immediately, without an extra tick's delay whenever security mode is off.
-  const task = jsk.submitTask(taskName, () => controller.abort())
+  const task = jsk.submitTask(taskName, () => controller.abort());
   // Unique per invocation (task.index is a monotonic counter) so concurrent evals can't
   // clobber each other's stashed arguments on the shared global object.
-  const argsKey = `__djsk_eval_args_${task.index}__`
+  const argsKey = `__djsk_eval_args_${task.index}__`;
   // Declared here (rather than as `const` from a destructured `await` above) and populated
   // inside the `try` below, so a throw from `installSecurityGuards`/`captureTerminalOutput`
   // itself still reaches the `finally` — otherwise such a throw would skip `jsk.removeTask`
   // entirely, leaking `task` as a permanent ghost entry in `jsk tasks`.
-  let restoreGuards: (() => void) | null = null
-  let restoreRestGuard: (() => void) | null = null
-  let capture: ReturnType<typeof captureTerminalOutput> | null = null
+  let restoreGuards: (() => void) | null = null;
+  let restoreRestGuard: (() => void) | null = null;
+  let capture: ReturnType<typeof captureTerminalOutput> | null = null;
   try {
-    ;({ restoreGuards, restoreRestGuard } = await installSecurityGuards(ctx))
+    ({ restoreGuards, restoreRestGuard } = await installSecurityGuards(ctx));
     // In security mode, also scrub what actually reaches the real terminal (not just the copy
     // captured for Discord) — otherwise a `console.log(client.token)` still leaks it into the
     // bot's own local logs, which may be shipped to a third-party service the operator doesn't
     // fully trust. Off by default (matches the general "token redaction is always on, full
     // scrubbing is opt-in" convention) so normal debugging output isn't silently altered.
-    capture = captureTerminalOutput(jsk.config.security ? (text) => jsk.scrub(text) : null)
+    capture = captureTerminalOutput(
+      jsk.config.security ? (text) => jsk.scrub(text) : null,
+    );
 
     // biome-ignore lint/suspicious/noExplicitAny: temporary bridge for vm.runInThisContext, deleted immediately below.
-    ;(globalThis as any)[argsKey] = argValues
+    (globalThis as any)[argsKey] = argValues;
 
-    let scriptResult: unknown
+    let scriptResult: unknown;
     try {
-      const script = compile(code, argNames, argsKey, taskName)
+      const script = compile(code, argNames, argsKey, taskName);
       scriptResult = script.runInThisContext({
         timeout: jsk.config.evalTimeout,
         filename: taskName,
-      })
+      });
     } catch (error) {
-      const errorCode = (error as NodeJS.ErrnoException)?.code
-      throw errorCode === 'ERR_SCRIPT_EXECUTION_TIMEOUT'
+      const errorCode = (error as NodeJS.ErrnoException)?.code;
+      throw errorCode === "ERR_SCRIPT_EXECUTION_TIMEOUT"
         ? new EvalTimedOutError(jsk.config.evalTimeout)
-        : error
+        : error;
     } finally {
       // biome-ignore lint/suspicious/noExplicitAny: temporary bridge for vm.runInThisContext.
-      delete (globalThis as any)[argsKey]
+      delete (globalThis as any)[argsKey];
     }
 
-    const result = await raceAbort(Promise.resolve(scriptResult), controller.signal)
-    const terminalOutput = capture.restore()
+    const result = await raceAbort(
+      Promise.resolve(scriptResult),
+      controller.signal,
+    );
+    const terminalOutput = capture.restore();
 
-    if (jsk.retain) jsk.lastResult = result
+    if (jsk.retain) jsk.lastResult = result;
 
-    await ctx.react('✅')
-    await sendResult(ctx, result, terminalOutput)
+    await ctx.react("✅");
+    await sendResult(ctx, result, terminalOutput);
   } catch (error) {
     // `capture` can still be `null` here if the throw came from `installSecurityGuards` itself,
     // before terminal output capture was even installed.
-    const terminalOutput = capture?.restore() ?? ''
+    const terminalOutput = capture?.restore() ?? "";
 
     if (error instanceof EvalCancelledError) {
       // `jsk cancel` already sends its own confirmation — report only whatever terminal
       // output the eval produced before it was stopped, if any, rather than also surfacing
       // this as a generic error through Jishaku's catch-and-report handler.
-      await ctx.react('🛑')
-      if (terminalOutput) await sendResult(ctx, undefined, terminalOutput)
-      return
+      await ctx.react("🛑");
+      if (terminalOutput) await sendResult(ctx, undefined, terminalOutput);
+      return;
     }
 
     if (error instanceof EvalTimedOutError) {
-      await ctx.react('⏱️')
-      await sendTerminalAndText(ctx, terminalOutput, error.message, 'output.js')
-      return
+      await ctx.react("⏱️");
+      await sendTerminalAndText(
+        ctx,
+        terminalOutput,
+        error.message,
+        "output.js",
+      );
+      return;
     }
 
-    throw error
+    throw error;
   } finally {
-    capture?.restore()
-    restoreRestGuard?.()
-    restoreGuards?.()
-    jsk.removeTask(task)
+    capture?.restore();
+    restoreRestGuard?.();
+    restoreGuards?.();
+    jsk.removeTask(task);
   }
 }

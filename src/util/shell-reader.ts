@@ -1,18 +1,23 @@
-import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import type { Encoding, ShellOverride } from '../types'
-import { stripAnsi } from './format'
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import type { Encoding, ShellOverride } from "../types";
+import { stripAnsi } from "./format";
 
-const WINDOWS = process.platform === 'win32'
-const POWERSHELL = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+const WINDOWS = process.platform === "win32";
+const POWERSHELL =
+  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
 
-const ZWSP = '​'
+const ZWSP = "​";
 
 function toDecoderLabel(encoding: Encoding): string {
-  const normalized = encoding.toLowerCase().replace(/[_\s]/g, '-')
-  if (normalized === 'shift-jis' || normalized === 'sjis' || normalized === 'shiftjis')
-    return 'shift-jis'
-  return 'utf-8'
+  const normalized = encoding.toLowerCase().replace(/[_\s]/g, "-");
+  if (
+    normalized === "shift-jis" ||
+    normalized === "sjis" ||
+    normalized === "shiftjis"
+  )
+    return "shift-jis";
+  return "utf-8";
 }
 
 /**
@@ -24,29 +29,29 @@ function toDecoderLabel(encoding: Encoding): string {
  */
 function powershellEncodingPrelude(label: string): string {
   const encodingExpr =
-    label === 'shift-jis'
-      ? '[System.Text.Encoding]::GetEncoding(932)'
-      : '[System.Text.Encoding]::UTF8'
-  return `[Console]::OutputEncoding = ${encodingExpr}; `
+    label === "shift-jis"
+      ? "[System.Text.Encoding]::GetEncoding(932)"
+      : "[System.Text.Encoding]::UTF8";
+  return `[Console]::OutputEncoding = ${encodingExpr}; `;
 }
 
 /** The `chcp` codepage matching `label`, for the `cmd.exe` fallback shell. */
 function cmdCodepage(label: string): number {
-  return label === 'shift-jis' ? 932 : 65001
+  return label === "shift-jis" ? 932 : 65001;
 }
 
 function cleanLine(line: string): string {
-  return stripAnsi(line).replace('\r', '').replaceAll('```', `\`\`${ZWSP}\``)
+  return stripAnsi(line).replace("\r", "").replaceAll("```", `\`\`${ZWSP}\``);
 }
 
 export interface ShellReaderOptions {
-  encoding: Encoding
+  encoding: Encoding;
   /** Inactivity timeout in ms; the process is killed if no output arrives for this long. */
-  timeout: number
+  timeout: number;
   /** Called for each decoded, cleaned output line. */
-  onLine: (line: string) => void
+  onLine: (line: string) => void;
   /** Overrides which shell to spawn, bypassing platform auto-detection entirely. */
-  shell?: ShellOverride | null
+  shell?: ShellOverride | null;
 }
 
 /**
@@ -63,87 +68,89 @@ export interface ShellReaderOptions {
  * Mirrors the shell selection in jishaku's `jishaku.shell.ShellReader`.
  */
 export class ShellReader {
-  readonly ps1: string
-  readonly highlight: string
+  readonly ps1: string;
+  readonly highlight: string;
   /** Resolves with the process exit code once it closes. */
-  readonly done: Promise<number>
+  readonly done: Promise<number>;
 
-  private readonly process: ChildProcessWithoutNullStreams
-  private inactivityTimer: NodeJS.Timeout | undefined
-  private killed = false
+  private readonly process: ChildProcessWithoutNullStreams;
+  private inactivityTimer: NodeJS.Timeout | undefined;
+  private killed = false;
 
   constructor(code: string, options: ShellReaderOptions) {
-    let command: string
-    let args: string[]
+    let command: string;
+    let args: string[];
 
-    const label = toDecoderLabel(options.encoding)
+    const label = toDecoderLabel(options.encoding);
 
     if (options.shell) {
-      command = options.shell.command
-      args = [...(options.shell.args ?? []), code]
-      this.ps1 = options.shell.ps1 ?? '$'
-      this.highlight = options.shell.highlight ?? 'ansi'
+      command = options.shell.command;
+      args = [...(options.shell.args ?? []), code];
+      this.ps1 = options.shell.ps1 ?? "$";
+      this.highlight = options.shell.highlight ?? "ansi";
     } else if (WINDOWS) {
       if (existsSync(POWERSHELL)) {
-        command = 'powershell'
+        command = "powershell";
         args = [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
           powershellEncodingPrelude(label) + code,
-        ]
-        this.ps1 = 'PS >'
-        this.highlight = 'powershell'
+        ];
+        this.ps1 = "PS >";
+        this.highlight = "powershell";
       } else {
-        command = 'cmd'
-        args = ['/c', `chcp ${cmdCodepage(label)} >nul && ${code}`]
-        this.ps1 = 'cmd >'
-        this.highlight = 'cmd'
+        command = "cmd";
+        args = ["/c", `chcp ${cmdCodepage(label)} >nul && ${code}`];
+        this.ps1 = "cmd >";
+        this.highlight = "cmd";
       }
     } else {
-      command = process.env.SHELL || '/bin/bash'
-      args = ['-c', code]
-      this.ps1 = '$'
-      this.highlight = 'ansi'
+      command = process.env.SHELL || "/bin/bash";
+      args = ["-c", code];
+      this.ps1 = "$";
+      this.highlight = "ansi";
     }
 
-    this.process = spawn(command, args, { windowsHide: true })
+    this.process = spawn(command, args, { windowsHide: true });
 
-    this.attachStream(this.process.stdout, label, options, '')
-    this.attachStream(this.process.stderr, label, options, '[stderr] ')
+    this.attachStream(this.process.stdout, label, options, "");
+    this.attachStream(this.process.stderr, label, options, "[stderr] ");
 
-    this.resetTimer(options)
+    this.resetTimer(options);
 
     this.done = new Promise<number>((resolve) => {
-      this.process.on('close', (exitCode) => {
-        if (this.inactivityTimer) clearTimeout(this.inactivityTimer)
-        resolve(exitCode ?? -1)
-      })
-      this.process.on('error', () => {
-        if (this.inactivityTimer) clearTimeout(this.inactivityTimer)
-        resolve(-1)
-      })
-    })
+      this.process.on("close", (exitCode) => {
+        if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
+        resolve(exitCode ?? -1);
+      });
+      this.process.on("error", () => {
+        if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
+        resolve(-1);
+      });
+    });
   }
 
   /** Terminates the shell process. */
   kill(): void {
-    if (this.killed) return
-    this.killed = true
-    if (this.inactivityTimer) clearTimeout(this.inactivityTimer)
+    if (this.killed) return;
+    this.killed = true;
+    if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
     try {
-      this.process.kill()
+      this.process.kill();
     } catch {
       // already dead
     }
   }
 
   private resetTimer(options: ShellReaderOptions): void {
-    if (this.inactivityTimer) clearTimeout(this.inactivityTimer)
+    if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
     this.inactivityTimer = setTimeout(() => {
-      options.onLine(`[status] Timed out after ${options.timeout}ms of inactivity.`)
-      this.kill()
-    }, options.timeout)
+      options.onLine(
+        `[status] Timed out after ${options.timeout}ms of inactivity.`,
+      );
+      this.kill();
+    }, options.timeout);
   }
 
   private attachStream(
@@ -152,28 +159,30 @@ export class ShellReader {
     options: ShellReaderOptions,
     prefix: string,
   ): void {
-    const decoder = new TextDecoder(label)
-    let buffer = ''
+    const decoder = new TextDecoder(label);
+    let buffer = "";
 
     const emit = (text: string) => {
-      buffer += text
-      let newline = buffer.indexOf('\n')
+      buffer += text;
+      let newline = buffer.indexOf("\n");
       while (newline !== -1) {
-        const line = buffer.slice(0, newline)
-        buffer = buffer.slice(newline + 1)
-        options.onLine(prefix + cleanLine(line))
-        this.resetTimer(options)
-        newline = buffer.indexOf('\n')
+        const line = buffer.slice(0, newline);
+        buffer = buffer.slice(newline + 1);
+        options.onLine(prefix + cleanLine(line));
+        this.resetTimer(options);
+        newline = buffer.indexOf("\n");
       }
-    }
+    };
 
-    stream.on('data', (chunk: Buffer) => emit(decoder.decode(chunk, { stream: true })))
-    stream.on('end', () => {
-      emit(decoder.decode())
+    stream.on("data", (chunk: Buffer) =>
+      emit(decoder.decode(chunk, { stream: true })),
+    );
+    stream.on("end", () => {
+      emit(decoder.decode());
       if (buffer.length > 0) {
-        options.onLine(prefix + cleanLine(buffer))
-        buffer = ''
+        options.onLine(prefix + cleanLine(buffer));
+        buffer = "";
       }
-    })
+    });
   }
 }

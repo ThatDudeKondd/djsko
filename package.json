@@ -89,6 +89,7 @@
     "@biomejs/biome": "^2.5.1",
     "@types/node": "^26.1.2",
     "discord.js": "^14.27.0",
+    "prettier": "^3.9.6",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

@@ -1,8 +1,8 @@
-import type { Context } from '../context'
+import type { Context } from "../context";
 
-const PREV_EMOJI = '⬅️'
-const NEXT_EMOJI = '➡️'
-const COLLECTOR_TIMEOUT = 5 * 60_000
+const PREV_EMOJI = "⬅️";
+const NEXT_EMOJI = "➡️";
+const COLLECTOR_TIMEOUT = 5 * 60_000;
 
 /**
  * Adds ⬅️/➡️ reaction pagination to `message`, letting `authorId` page through `pages`
@@ -32,52 +32,57 @@ export async function paginate(
   authorId: string,
   startIndex = 0,
 ): Promise<void> {
-  if (pages.length <= 1) return
+  if (pages.length <= 1) return;
 
   try {
-    await message.react(PREV_EMOJI)
-    await message.react(NEXT_EMOJI)
+    await message.react(PREV_EMOJI);
+    await message.react(NEXT_EMOJI);
   } catch {
-    return
+    return;
   }
 
-  let index = startIndex
+  let index = startIndex;
   const filter = (
     // biome-ignore lint/suspicious/noExplicitAny: cross-library duck typing.
     reaction: any,
     // biome-ignore lint/suspicious/noExplicitAny: cross-library duck typing.
     user: any,
   ): boolean =>
-    !user.bot && user.id === authorId && [PREV_EMOJI, NEXT_EMOJI].includes(reaction.emoji.name)
+    !user.bot &&
+    user.id === authorId &&
+    [PREV_EMOJI, NEXT_EMOJI].includes(reaction.emoji.name);
 
   // biome-ignore lint/suspicious/noExplicitAny: cross-library duck typing (collector shape differs slightly across forks).
-  let collector: any
+  let collector: any;
   try {
-    collector = message.createReactionCollector({ filter, time: COLLECTOR_TIMEOUT })
+    collector = message.createReactionCollector({
+      filter,
+      time: COLLECTOR_TIMEOUT,
+    });
   } catch {
-    return
+    return;
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: cross-library duck typing.
-  collector.on('collect', async (reaction: any, user: any) => {
+  collector.on("collect", async (reaction: any, user: any) => {
     index =
       reaction.emoji.name === PREV_EMOJI
         ? (index - 1 + pages.length) % pages.length
-        : (index + 1) % pages.length
+        : (index + 1) % pages.length;
 
     try {
       await ctx.edit(message, {
         content: render(pages[index], index, pages.length),
         allowedMentions: { parse: [] },
-      })
+      });
     } catch {
       // transient edit failure; state stays put, the next reaction will retry
     }
 
     try {
-      await reaction.users.remove(user.id)
+      await reaction.users.remove(user.id);
     } catch {
       // missing permission (e.g. DMs) — the user can un-react and re-react manually instead
     }
-  })
+  });
 }

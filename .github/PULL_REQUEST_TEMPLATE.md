@@ -8,13 +8,9 @@
 
 <!-- Please write a brief summary of your request. -->
 
-
-
 ## Why?
 
 <!-- Please include the reason for your request and a detailed description of your request. -->
-
-
 
 ## Related issue(s)
 

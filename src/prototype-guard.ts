@@ -1,4 +1,4 @@
-import { scrubMessagePayload } from './security'
+import { scrubMessagePayload } from "./security";
 
 /**
  * Comprehensive outbound guarding for `jsk js` in security mode.
@@ -14,42 +14,55 @@ import { scrubMessagePayload } from './security'
  */
 
 // biome-ignore lint/suspicious/noExplicitAny: patches duck-typed library internals.
-type Any = any
+type Any = any;
 
-const OUTBOUND_METHODS = ['send', 'reply', 'edit', 'editReply', 'followUp', 'update']
+const OUTBOUND_METHODS = [
+  "send",
+  "reply",
+  "edit",
+  "editReply",
+  "followUp",
+  "update",
+];
 
 // Classes whose `send`/`edit` are NOT message content (gateway/IPC/shard control). Never patch.
-const DENY_CLASSES = new Set(['Shard', 'ShardClientUtil', 'WebSocketShard', 'WebSocketManager'])
+const DENY_CLASSES = new Set([
+  "Shard",
+  "ShardClientUtil",
+  "WebSocketShard",
+  "WebSocketManager",
+]);
 
 // Marks a wrapped method so nested/concurrent evals don't double-wrap or wrongly restore.
-const GUARD_TAG = Symbol.for('djsk.guarded')
+const GUARD_TAG = Symbol.for("djsk.guarded");
 
 interface Patched {
-  proto: Any
-  method: string
-  original: Any
+  proto: Any;
+  method: string;
+  original: Any;
 }
 
 /** Collects the library's exported class constructors from both named and default exports. */
 function collectClasses(module: Record<string, unknown>): Set<Any> {
-  const classes = new Set<Any>()
-  const sources: Any[] = [module, (module as Any).default].filter(Boolean)
+  const classes = new Set<Any>();
+  const sources: Any[] = [module, (module as Any).default].filter(Boolean);
   for (const source of sources) {
     for (const value of Object.values(source)) {
-      if (typeof value === 'function' && (value as Any).prototype) classes.add(value)
+      if (typeof value === "function" && (value as Any).prototype)
+        classes.add(value);
     }
   }
-  return classes
+  return classes;
 }
 
 /** Finds the prototype in `start`'s chain that owns `method`, or null. */
 function findOwningPrototype(start: Any, method: string): Any {
-  let proto = start
+  let proto = start;
   while (proto && proto !== Object.prototype) {
-    if (Object.hasOwn(proto, method)) return proto
-    proto = Object.getPrototypeOf(proto)
+    if (Object.hasOwn(proto, method)) return proto;
+    proto = Object.getPrototypeOf(proto);
   }
-  return null
+  return null;
 }
 
 /**
@@ -60,34 +73,41 @@ export function installPrototypeGuards(
   module: Record<string, unknown>,
   scrub: (text: string) => string,
 ): () => void {
-  const patched: Patched[] = []
+  const patched: Patched[] = [];
 
   for (const cls of collectClasses(module)) {
-    const name = (cls.name as string) || ''
-    if (DENY_CLASSES.has(name) || name.endsWith('Manager')) continue
+    const name = (cls.name as string) || "";
+    if (DENY_CLASSES.has(name) || name.endsWith("Manager")) continue;
 
     for (const method of OUTBOUND_METHODS) {
-      const proto = findOwningPrototype(cls.prototype, method)
-      if (!proto) continue
+      const proto = findOwningPrototype(cls.prototype, method);
+      if (!proto) continue;
 
-      const ownerName = (proto.constructor?.name as string) || ''
-      if (DENY_CLASSES.has(ownerName) || ownerName.endsWith('Manager')) continue
+      const ownerName = (proto.constructor?.name as string) || "";
+      if (DENY_CLASSES.has(ownerName) || ownerName.endsWith("Manager"))
+        continue;
 
-      const descriptor = Object.getOwnPropertyDescriptor(proto, method)
-      if (!descriptor || typeof descriptor.value !== 'function' || !descriptor.writable) continue
+      const descriptor = Object.getOwnPropertyDescriptor(proto, method);
+      if (
+        !descriptor ||
+        typeof descriptor.value !== "function" ||
+        !descriptor.writable
+      )
+        continue;
 
-      const original = descriptor.value
-      if (original[GUARD_TAG]) continue // already guarded by an outer eval
+      const original = descriptor.value;
+      if (original[GUARD_TAG]) continue; // already guarded by an outer eval
 
       const wrapper = function (this: unknown, ...args: Any[]) {
-        if (args.length > 0) args[0] = scrubMessagePayload(args[0], scrub, true)
-        return original.apply(this, args)
-      }
-      wrapper[GUARD_TAG] = true
+        if (args.length > 0)
+          args[0] = scrubMessagePayload(args[0], scrub, true);
+        return original.apply(this, args);
+      };
+      wrapper[GUARD_TAG] = true;
 
       try {
-        proto[method] = wrapper
-        patched.push({ proto, method, original })
+        proto[method] = wrapper;
+        patched.push({ proto, method, original });
       } catch {
         // Non-writable in this runtime; skip.
       }
@@ -97,16 +117,16 @@ export function installPrototypeGuards(
   return () => {
     for (const { proto, method, original } of patched) {
       try {
-        proto[method] = original
+        proto[method] = original;
       } catch {
         // ignore
       }
     }
-  }
+  };
 }
 
 /** `body` fields on a raw REST request that may carry user-visible text needing redaction. */
-const REST_BODY_TEXT_FIELDS = ['content']
+const REST_BODY_TEXT_FIELDS = ["content"];
 
 /**
  * Patches the library's `REST` class (discord.js v14+ only — v13 and the v13-based selfbot
@@ -127,41 +147,41 @@ export function installRestGuard(
   module: Record<string, unknown>,
   scrub: (text: string) => string,
 ): (() => void) | null {
-  const RestClass = (module.REST ?? (module as Any).default?.REST) as Any
-  if (typeof RestClass !== 'function' || !RestClass.prototype) return null
+  const RestClass = (module.REST ?? (module as Any).default?.REST) as Any;
+  if (typeof RestClass !== "function" || !RestClass.prototype) return null;
 
-  const proto = RestClass.prototype
-  const original = proto.request
-  if (typeof original !== 'function' || original[GUARD_TAG]) return null
+  const proto = RestClass.prototype;
+  const original = proto.request;
+  if (typeof original !== "function" || original[GUARD_TAG]) return null;
 
   const wrapper = function (this: unknown, options: Any, ...rest: Any[]) {
     if (
       options &&
-      typeof options === 'object' &&
+      typeof options === "object" &&
       options.body &&
-      typeof options.body === 'object'
+      typeof options.body === "object"
     ) {
-      const body = { ...options.body }
+      const body = { ...options.body };
       for (const field of REST_BODY_TEXT_FIELDS) {
-        if (typeof body[field] === 'string') body[field] = scrub(body[field])
+        if (typeof body[field] === "string") body[field] = scrub(body[field]);
       }
-      options = { ...options, body }
+      options = { ...options, body };
     }
-    return original.call(this, options, ...rest)
-  }
-  wrapper[GUARD_TAG] = true
+    return original.call(this, options, ...rest);
+  };
+  wrapper[GUARD_TAG] = true;
 
   try {
-    proto.request = wrapper
+    proto.request = wrapper;
   } catch {
-    return null // non-writable in this runtime
+    return null; // non-writable in this runtime
   }
 
   return () => {
     try {
-      proto.request = original
+      proto.request = original;
     } catch {
       // ignore
     }
-  }
+  };
 }

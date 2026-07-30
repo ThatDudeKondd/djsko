@@ -1,26 +1,26 @@
-import { describe, expect, it, vi } from 'vitest'
-import { Context } from '../context'
-import { Jishaku } from '../jishaku'
-import { jsCommands } from './js'
+import { describe, expect, it, vi } from "vitest";
+import { Context } from "../context";
+import { Jishaku } from "../jishaku";
+import { jsCommands } from "./js";
 
-const jsCommand = jsCommands[0]
+const jsCommand = jsCommands[0];
 
 function makeJsk(configOverrides: Record<string, unknown> = {}): Jishaku {
   return new Jishaku(
     // biome-ignore lint/suspicious/noExplicitAny: minimal fake client for tests.
-    { token: 't0ken-fake' } as any,
+    { token: "t0ken-fake" } as any,
     { consoleLog: false, catchProcessErrors: false, ...configOverrides },
-  )
+  );
 }
 
 function makeContext(code: string, jsk: Jishaku = makeJsk()) {
-  const send = vi.fn(async (payload: unknown) => ({ payload }))
-  const react = vi.fn(async () => {})
+  const send = vi.fn(async (payload: unknown) => ({ payload }));
+  const react = vi.fn(async () => {});
   // biome-ignore lint/suspicious/noExplicitAny: minimal fake message for tests.
-  const message = { channel: { send }, react, author: {} } as any
-  const source = { kind: 'message' as const, message }
-  const ctx = new Context(jsk, source, 'js', code)
-  return { ctx, send, react }
+  const message = { channel: { send }, react, author: {} } as any;
+  const source = { kind: "message" as const, message };
+  const ctx = new Context(jsk, source, "js", code);
+  return { ctx, send, react };
 }
 
 // vitest patches the global `console` for its own per-test reporting, so `console.log` inside
@@ -28,214 +28,222 @@ function makeContext(code: string, jsk: Jishaku = makeJsk()) {
 // process. Writing to `process.stdout` directly (as these tests do) exercises the exact layer
 // `captureTerminalOutput` patches, regardless of test-runner console shenanigans — and, since
 // it isn't `console.*`, it also proves capture isn't limited to console output.
-describe('jsk js — terminal output capture', () => {
-  it('includes raw process.stdout.write output alongside the eval result in the (single) reply', async () => {
-    const { ctx, send } = makeContext('process.stdout.write("hello from eval\\n"); return 1 + 1')
+describe("jsk js — terminal output capture", () => {
+  it("includes raw process.stdout.write output alongside the eval result in the (single) reply", async () => {
+    const { ctx, send } = makeContext(
+      'process.stdout.write("hello from eval\\n"); return 1 + 1',
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(send).toHaveBeenCalledTimes(1)
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('hello from eval')
-    expect(payload.content).toContain('2')
-  })
+    expect(send).toHaveBeenCalledTimes(1);
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("hello from eval");
+    expect(payload.content).toContain("2");
+  });
 
-  it('captures process.stderr.write output too', async () => {
-    const { ctx, send } = makeContext('process.stderr.write("uh oh\\n")')
+  it("captures process.stderr.write output too", async () => {
+    const { ctx, send } = makeContext('process.stderr.write("uh oh\\n")');
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(send).toHaveBeenCalledTimes(1)
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('uh oh')
-  })
+    expect(send).toHaveBeenCalledTimes(1);
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("uh oh");
+  });
 
-  it('still sends terminal output when there is no return value', async () => {
-    const { ctx, send } = makeContext('process.stdout.write("side effect only\\n")')
+  it("still sends terminal output when there is no return value", async () => {
+    const { ctx, send } = makeContext(
+      'process.stdout.write("side effect only\\n")',
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(send).toHaveBeenCalledTimes(1)
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('side effect only')
-  })
+    expect(send).toHaveBeenCalledTimes(1);
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("side effect only");
+  });
 
-  it('sends nothing when there is neither terminal output nor a result', async () => {
-    const { ctx, send } = makeContext('const x = 1')
+  it("sends nothing when there is neither terminal output nor a result", async () => {
+    const { ctx, send } = makeContext("const x = 1");
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(send).not.toHaveBeenCalled()
-  })
+    expect(send).not.toHaveBeenCalled();
+  });
 
-  it('does not auto-return a bare expression — an explicit `return` is required', async () => {
-    const { ctx, send } = makeContext('1 + 1')
+  it("does not auto-return a bare expression — an explicit `return` is required", async () => {
+    const { ctx, send } = makeContext("1 + 1");
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(send).not.toHaveBeenCalled()
-  })
+    expect(send).not.toHaveBeenCalled();
+  });
 
-  it('restores process.stdout.write after the eval even if user code throws', async () => {
-    const original = process.stdout.write
-    const { ctx } = makeContext('throw new Error("boom")')
+  it("restores process.stdout.write after the eval even if user code throws", async () => {
+    const original = process.stdout.write;
+    const { ctx } = makeContext('throw new Error("boom")');
 
-    await expect(jsCommand.handler(ctx)).rejects.toThrow('boom')
+    await expect(jsCommand.handler(ctx)).rejects.toThrow("boom");
 
-    expect(process.stdout.write).toBe(original)
-  })
+    expect(process.stdout.write).toBe(original);
+  });
 
-  it('redacts the client token from captured terminal output regardless of security mode', async () => {
-    const { ctx, send } = makeContext('process.stdout.write(client.token)')
+  it("redacts the client token from captured terminal output regardless of security mode", async () => {
+    const { ctx, send } = makeContext("process.stdout.write(client.token)");
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).not.toContain('t0ken-fake')
-    expect(payload.content).toContain('[token omitted]')
-  })
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).not.toContain("t0ken-fake");
+    expect(payload.content).toContain("[token omitted]");
+  });
 
-  it('applies full secret scrubbing to captured terminal output in security mode', async () => {
-    process.env.JS_TEST_SECRET_KEY = 'super-secret-value-123456'
+  it("applies full secret scrubbing to captured terminal output in security mode", async () => {
+    process.env.JS_TEST_SECRET_KEY = "super-secret-value-123456";
     try {
       const { ctx, send } = makeContext(
-        'process.stdout.write(process.env.JS_TEST_SECRET_KEY)',
+        "process.stdout.write(process.env.JS_TEST_SECRET_KEY)",
         makeJsk({ security: true }),
-      )
+      );
 
-      await jsCommand.handler(ctx)
+      await jsCommand.handler(ctx);
 
-      const [payload] = send.mock.calls[0] as [{ content: string }]
-      expect(payload.content).not.toContain('super-secret-value-123456')
-      expect(payload.content).toContain('[redacted]')
+      const [payload] = send.mock.calls[0] as [{ content: string }];
+      expect(payload.content).not.toContain("super-secret-value-123456");
+      expect(payload.content).toContain("[redacted]");
     } finally {
-      delete process.env.JS_TEST_SECRET_KEY
+      delete process.env.JS_TEST_SECRET_KEY;
     }
-  })
+  });
 
-  it('strips ANSI color codes from captured terminal output', async () => {
+  it("strips ANSI color codes from captured terminal output", async () => {
     // Mirrors what `console.log(42)` writes when the real stdout is a TTY (colors enabled) —
     // unrelated to whether the output is headed to Discord, so it must be stripped regardless.
-    const { ctx, send } = makeContext('process.stdout.write("\\x1b[33m42\\x1b[39m\\n")')
+    const { ctx, send } = makeContext(
+      'process.stdout.write("\\x1b[33m42\\x1b[39m\\n")',
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('42')
-    expect(payload.content).not.toContain('\x1b')
-    expect(payload.content).not.toContain('[33m')
-  })
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("42");
+    expect(payload.content).not.toContain("\x1b");
+    expect(payload.content).not.toContain("[33m");
+  });
 
-  it('keeps codeblock fences on every page when terminal output needs pagination', async () => {
-    const { ctx, send } = makeContext("process.stdout.write('x'.repeat(3000))")
+  it("keeps codeblock fences on every page when terminal output needs pagination", async () => {
+    const { ctx, send } = makeContext("process.stdout.write('x'.repeat(3000))");
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
     // Terminal output alone already exceeds the message limit, so it must be sent through the
     // codeblock-aware pagination (one message per fenced page) rather than combined with the
     // result into one oversized string and split at fixed offsets — which would only leave the
     // fences intact at the very start of page 1 and the very end of the last page.
-    expect(send).toHaveBeenCalled()
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content.startsWith('```\n')).toBe(true)
-    const closeIndex = payload.content.indexOf('```', 4)
-    expect(closeIndex).toBeGreaterThan(-1)
-    expect(payload.content.slice(closeIndex)).toMatch(/^```\n-- Page 1\/\d+ --$/)
-  })
+    expect(send).toHaveBeenCalled();
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content.startsWith("```\n")).toBe(true);
+    const closeIndex = payload.content.indexOf("```", 4);
+    expect(closeIndex).toBeGreaterThan(-1);
+    expect(payload.content.slice(closeIndex)).toMatch(
+      /^```\n-- Page 1\/\d+ --$/,
+    );
+  });
 
-  it('does not scrub non-token secrets when security mode is off', async () => {
-    process.env.JS_TEST_SECRET_KEY_2 = 'another-secret-value-654321'
+  it("does not scrub non-token secrets when security mode is off", async () => {
+    process.env.JS_TEST_SECRET_KEY_2 = "another-secret-value-654321";
     try {
       const { ctx, send } = makeContext(
-        'process.stdout.write(process.env.JS_TEST_SECRET_KEY_2)',
+        "process.stdout.write(process.env.JS_TEST_SECRET_KEY_2)",
         makeJsk({ security: false }),
-      )
+      );
 
-      await jsCommand.handler(ctx)
+      await jsCommand.handler(ctx);
 
-      const [payload] = send.mock.calls[0] as [{ content: string }]
-      expect(payload.content).toContain('another-secret-value-654321')
+      const [payload] = send.mock.calls[0] as [{ content: string }];
+      expect(payload.content).toContain("another-secret-value-654321");
     } finally {
-      delete process.env.JS_TEST_SECRET_KEY_2
+      delete process.env.JS_TEST_SECRET_KEY_2;
     }
-  })
-})
+  });
+});
 
-describe('jsk js — cancellation', () => {
-  it('registers a cancellable task while the eval is running', async () => {
-    const { ctx } = makeContext('await new Promise(() => {})')
-    const handlerPromise = jsCommand.handler(ctx)
+describe("jsk js — cancellation", () => {
+  it("registers a cancellable task while the eval is running", async () => {
+    const { ctx } = makeContext("await new Promise(() => {})");
+    const handlerPromise = jsCommand.handler(ctx);
 
-    expect(ctx.jsk.tasks).toHaveLength(1)
-    expect(ctx.jsk.tasks[0].command).toBe('jsk js')
-    expect(ctx.jsk.tasks[0].cancel).toBeTypeOf('function')
+    expect(ctx.jsk.tasks).toHaveLength(1);
+    expect(ctx.jsk.tasks[0].command).toBe("jsk js");
+    expect(ctx.jsk.tasks[0].cancel).toBeTypeOf("function");
 
-    ctx.jsk.tasks[0].cancel?.()
-    await handlerPromise
-  })
+    ctx.jsk.tasks[0].cancel?.();
+    await handlerPromise;
+  });
 
-  it('reports a clean cancellation instead of hanging when jsk cancel aborts it', async () => {
-    const { ctx, react, send } = makeContext('await new Promise(() => {})')
-    const handlerPromise = jsCommand.handler(ctx)
+  it("reports a clean cancellation instead of hanging when jsk cancel aborts it", async () => {
+    const { ctx, react, send } = makeContext("await new Promise(() => {})");
+    const handlerPromise = jsCommand.handler(ctx);
 
-    ctx.jsk.tasks[0].cancel?.()
-    await expect(handlerPromise).resolves.toBeUndefined()
+    ctx.jsk.tasks[0].cancel?.();
+    await expect(handlerPromise).resolves.toBeUndefined();
 
-    expect(react).toHaveBeenCalledWith('🛑')
-    expect(react).not.toHaveBeenCalledWith('✅')
-    expect(ctx.jsk.tasks).toHaveLength(0)
+    expect(react).toHaveBeenCalledWith("🛑");
+    expect(react).not.toHaveBeenCalledWith("✅");
+    expect(ctx.jsk.tasks).toHaveLength(0);
     // No terminal output was produced before cancelling, so there's nothing to send.
-    expect(send).not.toHaveBeenCalled()
-  })
+    expect(send).not.toHaveBeenCalled();
+  });
 
-  it('still reports terminal output produced before the cancellation', async () => {
+  it("still reports terminal output produced before the cancellation", async () => {
     const { ctx, send } = makeContext(
       'process.stdout.write("partial\\n"); await new Promise(() => {})',
-    )
-    const handlerPromise = jsCommand.handler(ctx)
+    );
+    const handlerPromise = jsCommand.handler(ctx);
 
-    ctx.jsk.tasks[0].cancel?.()
-    await handlerPromise
+    ctx.jsk.tasks[0].cancel?.();
+    await handlerPromise;
 
-    expect(send).toHaveBeenCalledTimes(1)
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('partial')
-  })
+    expect(send).toHaveBeenCalledTimes(1);
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("partial");
+  });
 
-  it('exposes an AbortSignal in the eval scope for cooperative cancellation', async () => {
-    const { ctx, send } = makeContext('return signal instanceof AbortSignal')
+  it("exposes an AbortSignal in the eval scope for cooperative cancellation", async () => {
+    const { ctx, send } = makeContext("return signal instanceof AbortSignal");
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('true')
-  })
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("true");
+  });
 
-  it('leaves other errors (not a cancellation) to propagate normally', async () => {
-    const { ctx, react } = makeContext('throw new Error("boom")')
+  it("leaves other errors (not a cancellation) to propagate normally", async () => {
+    const { ctx, react } = makeContext('throw new Error("boom")');
 
-    await expect(jsCommand.handler(ctx)).rejects.toThrow('boom')
+    await expect(jsCommand.handler(ctx)).rejects.toThrow("boom");
 
-    expect(react).not.toHaveBeenCalledWith('🛑')
-  })
-})
+    expect(react).not.toHaveBeenCalledWith("🛑");
+  });
+});
 
-describe('jsk js — dynamicImport', () => {
-  it('lets eval code dynamically import a module without --experimental-vm-modules', async () => {
+describe("jsk js — dynamicImport", () => {
+  it("lets eval code dynamically import a module without --experimental-vm-modules", async () => {
     const { ctx, send } = makeContext(
       'const os = await dynamicImport("node:os"); return typeof os.platform()',
-    )
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('string')
-  })
-})
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("string");
+  });
+});
 
-describe('jsk js — blocking child_process calls', () => {
-  it('kills an execSync call with no explicit timeout after evalTimeout', async () => {
-    const jsk = makeJsk({ evalTimeout: 300 })
+describe("jsk js — blocking child_process calls", () => {
+  it("kills an execSync call with no explicit timeout after evalTimeout", async () => {
+    const jsk = makeJsk({ evalTimeout: 300 });
     const { ctx, react, send } = makeContext(
       `const cp = await dynamicImport("node:child_process")
        try {
@@ -245,21 +253,21 @@ describe('jsk js — blocking child_process calls', () => {
          return e.code
        }`,
       jsk,
-    )
+    );
 
-    const start = Date.now()
-    await jsCommand.handler(ctx)
-    const elapsed = Date.now() - start
+    const start = Date.now();
+    await jsCommand.handler(ctx);
+    const elapsed = Date.now() - start;
 
     // Killed by the injected default timeout (~300ms), not left to run the full 3s.
-    expect(elapsed).toBeLessThan(2000)
-    expect(react).toHaveBeenCalledWith('✅')
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('ETIMEDOUT')
-  }, 10_000)
+    expect(elapsed).toBeLessThan(2000);
+    expect(react).toHaveBeenCalledWith("✅");
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("ETIMEDOUT");
+  }, 10_000);
 
-  it('does not override a timeout the eval code set explicitly', async () => {
-    const jsk = makeJsk({ evalTimeout: 5000 })
+  it("does not override a timeout the eval code set explicitly", async () => {
+    const jsk = makeJsk({ evalTimeout: 5000 });
     const { ctx, react, send } = makeContext(
       `const cp = await dynamicImport("node:child_process")
        try {
@@ -269,150 +277,159 @@ describe('jsk js — blocking child_process calls', () => {
          return e.code
        }`,
       jsk,
-    )
+    );
 
-    const start = Date.now()
-    await jsCommand.handler(ctx)
-    const elapsed = Date.now() - start
+    const start = Date.now();
+    await jsCommand.handler(ctx);
+    const elapsed = Date.now() - start;
 
     // Killed at ~200ms (the eval's own explicit timeout), well under the 5000ms evalTimeout —
     // proves the default injection didn't clobber the caller's own value.
-    expect(elapsed).toBeLessThan(2000)
-    expect(react).toHaveBeenCalledWith('✅')
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('ETIMEDOUT')
-  }, 10_000)
+    expect(elapsed).toBeLessThan(2000);
+    expect(react).toHaveBeenCalledWith("✅");
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("ETIMEDOUT");
+  }, 10_000);
 
-  it('does not mutate the real child_process module (only the dynamicImport result is wrapped)', async () => {
-    const childProcess = await import('node:child_process')
-    const originalExecSync = childProcess.execSync
-    const jsk = makeJsk({ evalTimeout: 5000 })
+  it("does not mutate the real child_process module (only the dynamicImport result is wrapped)", async () => {
+    const childProcess = await import("node:child_process");
+    const originalExecSync = childProcess.execSync;
+    const jsk = makeJsk({ evalTimeout: 5000 });
     const { ctx } = makeContext(
       'const cp = await dynamicImport("node:child_process"); return typeof cp.execSync',
       jsk,
-    )
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(childProcess.execSync).toBe(originalExecSync)
-  })
+    expect(childProcess.execSync).toBe(originalExecSync);
+  });
 
-  it('leaves unguarded child_process exports (e.g. exec) passing through unwrapped', async () => {
-    const jsk = makeJsk({ evalTimeout: 5000 })
+  it("leaves unguarded child_process exports (e.g. exec) passing through unwrapped", async () => {
+    const jsk = makeJsk({ evalTimeout: 5000 });
     const { ctx, send } = makeContext(
       'const cp = await dynamicImport("node:child_process"); return typeof cp.exec',
       jsk,
-    )
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('function')
-  })
-})
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("function");
+  });
+});
 
-describe('jsk js — synchronous runaway (evalTimeout)', () => {
-  it('terminates a bare while(true) loop instead of hanging the process forever', async () => {
-    const jsk = makeJsk({ evalTimeout: 100 })
-    const { ctx, react, send } = makeContext('while (true) {}', jsk)
+describe("jsk js — synchronous runaway (evalTimeout)", () => {
+  it("terminates a bare while(true) loop instead of hanging the process forever", async () => {
+    const jsk = makeJsk({ evalTimeout: 100 });
+    const { ctx, react, send } = makeContext("while (true) {}", jsk);
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(react).toHaveBeenCalledWith('⏱️')
-    expect(react).not.toHaveBeenCalledWith('✅')
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('Synchronous execution exceeded')
-    expect(payload.content).toContain('100ms')
-  }, 10_000)
+    expect(react).toHaveBeenCalledWith("⏱️");
+    expect(react).not.toHaveBeenCalledWith("✅");
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("Synchronous execution exceeded");
+    expect(payload.content).toContain("100ms");
+  }, 10_000);
 
-  it('recovers cleanly afterwards — a later eval still runs fine', async () => {
-    const jsk = makeJsk({ evalTimeout: 100 })
-    const timedOut = makeContext('while (true) {}', jsk)
-    await jsCommand.handler(timedOut.ctx)
+  it("recovers cleanly afterwards — a later eval still runs fine", async () => {
+    const jsk = makeJsk({ evalTimeout: 100 });
+    const timedOut = makeContext("while (true) {}", jsk);
+    await jsCommand.handler(timedOut.ctx);
 
-    const following = makeContext('return 1 + 1', jsk)
-    await jsCommand.handler(following.ctx)
+    const following = makeContext("return 1 + 1", jsk);
+    await jsCommand.handler(following.ctx);
 
-    const [payload] = following.send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('2')
-  }, 10_000)
+    const [payload] = following.send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("2");
+  }, 10_000);
 
-  it('includes terminal output written before the loop started', async () => {
-    const jsk = makeJsk({ evalTimeout: 100 })
+  it("includes terminal output written before the loop started", async () => {
+    const jsk = makeJsk({ evalTimeout: 100 });
     const { ctx, send } = makeContext(
       'process.stdout.write("before the loop\\n"); while (true) {}',
       jsk,
-    )
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toContain('before the loop')
-  }, 10_000)
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toContain("before the loop");
+  }, 10_000);
 
-  it('removes the task after timing out, so it no longer shows up in jsk tasks', async () => {
-    const jsk = makeJsk({ evalTimeout: 100 })
-    const { ctx } = makeContext('while (true) {}', jsk)
+  it("removes the task after timing out, so it no longer shows up in jsk tasks", async () => {
+    const jsk = makeJsk({ evalTimeout: 100 });
+    const { ctx } = makeContext("while (true) {}", jsk);
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(jsk.tasks).toHaveLength(0)
-  }, 10_000)
+    expect(jsk.tasks).toHaveLength(0);
+  }, 10_000);
 
-  it('does not time out an eval that only awaits (no sync runaway)', async () => {
-    const jsk = makeJsk({ evalTimeout: 100 })
+  it("does not time out an eval that only awaits (no sync runaway)", async () => {
+    const jsk = makeJsk({ evalTimeout: 100 });
     const { ctx, send } = makeContext(
       'await new Promise((r) => setTimeout(r, 300)); return "done"',
       jsk,
-    )
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    const [payload] = send.mock.calls[0] as [{ content: string }]
-    expect(payload.content).toBe('done')
-  }, 10_000)
-})
+    const [payload] = send.mock.calls[0] as [{ content: string }];
+    expect(payload.content).toBe("done");
+  }, 10_000);
+});
 
-describe('jsk js — local terminal output scrubbing (security mode)', () => {
-  it('scrubs what actually reaches process.stdout in security mode, not just the Discord copy', async () => {
-    const { ctx } = makeContext('process.stdout.write(client.token)', makeJsk({ security: true }))
-    const originalWrite = process.stdout.write
+describe("jsk js — local terminal output scrubbing (security mode)", () => {
+  it("scrubs what actually reaches process.stdout in security mode, not just the Discord copy", async () => {
+    const { ctx } = makeContext(
+      "process.stdout.write(client.token)",
+      makeJsk({ security: true }),
+    );
+    const originalWrite = process.stdout.write;
     // biome-ignore lint/suspicious/noExplicitAny: minimal stand-in for the real stream write.
-    const spy = vi.fn(() => true) as any
-    process.stdout.write = spy
+    const spy = vi.fn(() => true) as any;
+    process.stdout.write = spy;
     try {
-      await jsCommand.handler(ctx)
+      await jsCommand.handler(ctx);
     } finally {
-      process.stdout.write = originalWrite
+      process.stdout.write = originalWrite;
     }
 
-    const written = spy.mock.calls.map((call: unknown[]) => call[0]).join('')
-    expect(written).not.toContain('t0ken-fake')
-    expect(written).toContain('[token omitted]')
-  })
+    const written = spy.mock.calls.map((call: unknown[]) => call[0]).join("");
+    expect(written).not.toContain("t0ken-fake");
+    expect(written).toContain("[token omitted]");
+  });
 
-  it('leaves real process.stdout untouched outside security mode', async () => {
-    const { ctx } = makeContext('process.stdout.write(client.token)', makeJsk({ security: false }))
-    const originalWrite = process.stdout.write
+  it("leaves real process.stdout untouched outside security mode", async () => {
+    const { ctx } = makeContext(
+      "process.stdout.write(client.token)",
+      makeJsk({ security: false }),
+    );
+    const originalWrite = process.stdout.write;
     // biome-ignore lint/suspicious/noExplicitAny: minimal stand-in for the real stream write.
-    const spy = vi.fn(() => true) as any
-    process.stdout.write = spy
+    const spy = vi.fn(() => true) as any;
+    process.stdout.write = spy;
     try {
-      await jsCommand.handler(ctx)
+      await jsCommand.handler(ctx);
     } finally {
-      process.stdout.write = originalWrite
+      process.stdout.write = originalWrite;
     }
 
-    const written = spy.mock.calls.map((call: unknown[]) => call[0]).join('')
-    expect(written).toContain('t0ken-fake')
-  })
+    const written = spy.mock.calls.map((call: unknown[]) => call[0]).join("");
+    expect(written).toContain("t0ken-fake");
+  });
 
-  it('still restores the real process.stdout.write after a security-mode eval', async () => {
-    const originalWrite = process.stdout.write
-    const { ctx } = makeContext('process.stdout.write("hi")', makeJsk({ security: true }))
+  it("still restores the real process.stdout.write after a security-mode eval", async () => {
+    const originalWrite = process.stdout.write;
+    const { ctx } = makeContext(
+      'process.stdout.write("hi")',
+      makeJsk({ security: true }),
+    );
 
-    await jsCommand.handler(ctx)
+    await jsCommand.handler(ctx);
 
-    expect(process.stdout.write).toBe(originalWrite)
-  })
-})
+    expect(process.stdout.write).toBe(originalWrite);
+  });
+});

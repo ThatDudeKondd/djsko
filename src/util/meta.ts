@@ -1,13 +1,13 @@
-import { isPackageLatest } from 'is-package-latest'
-import pkg from '../../package.json'
+import { isPackageLatest } from "is-package-latest";
+import pkg from "../../package.json";
 
 /** The current djsk version, read from package.json at build time. */
-export const DJSK_VERSION: string = pkg.version
+export const DJSK_VERSION: string = pkg.version;
 
 /** Result of a successful {@link checkForUpdate} check. */
 export interface UpdateCheckResult {
-  isLatest: boolean
-  latestVersion: string
+  isLatest: boolean;
+  latestVersion: string;
 }
 
 /**
@@ -17,24 +17,27 @@ export interface UpdateCheckResult {
  */
 export async function checkForUpdate(): Promise<UpdateCheckResult | null> {
   try {
-    const result = await isPackageLatest({ name: 'djsk', version: DJSK_VERSION })
-    if (!result.success || !result.latestVersion) return null
-    return { isLatest: result.isLatest, latestVersion: result.latestVersion }
+    const result = await isPackageLatest({
+      name: "djsk",
+      version: DJSK_VERSION,
+    });
+    if (!result.success || !result.latestVersion) return null;
+    return { isLatest: result.isLatest, latestVersion: result.latestVersion };
   } catch {
-    return null
+    return null;
   }
 }
 
 /** Package names of the supported discord.js-compatible libraries, in detection order. */
 const LIBRARY_CANDIDATES = [
-  'discord.js',
-  'discord.js-selfbot-v13',
-  'discord.js-selfbot-youtsuho-v13',
-] as const
+  "discord.js",
+  "discord.js-selfbot-v13",
+  "discord.js-selfbot-youtsuho-v13",
+] as const;
 
 export interface LibraryInfo {
-  name: string
-  version: string
+  name: string;
+  version: string;
 }
 
 /**
@@ -46,14 +49,17 @@ export interface LibraryInfo {
 export async function detectLibrary(): Promise<LibraryInfo | null> {
   for (const name of LIBRARY_CANDIDATES) {
     try {
-      const mod = (await import(name)) as { version?: string; default?: { version?: string } }
-      const version = mod.version ?? mod.default?.version
-      if (version) return { name, version }
+      const mod = (await import(name)) as {
+        version?: string;
+        default?: { version?: string };
+      };
+      const version = mod.version ?? mod.default?.version;
+      if (version) return { name, version };
     } catch {
       // Not installed; try the next candidate.
     }
   }
-  return null
+  return null;
 }
 
 /**
@@ -62,14 +68,23 @@ export async function detectLibrary(): Promise<LibraryInfo | null> {
  * Used by security mode to reach the library's exported classes for prototype guarding.
  * Returns `null` if none can be resolved.
  */
-export async function loadLibraryModule(): Promise<Record<string, unknown> | null> {
+export async function loadLibraryModule(): Promise<Record<
+  string,
+  unknown
+> | null> {
   for (const name of LIBRARY_CANDIDATES) {
     try {
-      const mod = (await import(name)) as Record<string, unknown> & { version?: string }
-      if (mod.version ?? (mod.default as { version?: string } | undefined)?.version) return mod
+      const mod = (await import(name)) as Record<string, unknown> & {
+        version?: string;
+      };
+      if (
+        mod.version ??
+        (mod.default as { version?: string } | undefined)?.version
+      )
+        return mod;
     } catch {
       // Not installed; try the next candidate.
     }
   }
-  return null
+  return null;
 }
