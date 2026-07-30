@@ -1,7 +1,7 @@
 {
-  "name": "djsk",
+  "name": "djsko",
   "version": "0.5.0",
-  "description": "Jishaku for Discord.js — a debugging and diagnostics toolkit for your bot.",
+  "description": "Jishaku for Discord.js — a debugging and diagnostics toolkit for your bot. Version open for creation of new command",
   "keywords": [
     "Discord",
     "discord",
@@ -87,8 +87,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
+    "@types/node": "^26.1.2",
+    "discord.js": "^14.27.0",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true
   }
 }
