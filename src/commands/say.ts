@@ -15,6 +15,7 @@ const sayCommand: Command = {
         throw err;
       }
     }
+
     await ctx.channel.send(message);
   },
 };
