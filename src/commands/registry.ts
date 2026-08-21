@@ -10,6 +10,7 @@ import { restartCommands } from "./restart";
 import { rootCommands } from "./root";
 import { sayCommands } from "./say";
 import { shellCommands } from "./shell";
+import { updateCommands } from "./update";
 
 /** A djsk subcommand under the `jsk` root. */
 export interface Command {
@@ -36,6 +37,7 @@ export const COMMANDS: Command[] = [
   ...sayCommands,
   ...dmCommands,
   ...restartCommands,
+  ...updateCommands,
 ];
 
 const LOOKUP = new Map<string, Command>();
