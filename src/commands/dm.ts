@@ -10,7 +10,7 @@ const dmCommand: Command = {
 
     try {
       const user = await ctx.client.users.fetch(userId);
-      await user.send(message);
+      await user.send(`${message}\n\n*Sent by ${ctx.author.tag}*`);
       await ctx.reply(`Sent DM to <@${userId}>: ${message}`);
     } catch (err) {
       await ctx.reply(`Failed to send DM to <@${userId}>: ${err}`);
