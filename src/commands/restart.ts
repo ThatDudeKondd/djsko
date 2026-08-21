@@ -15,15 +15,7 @@ const restart: Command = {
       },
     );
 
-    restartProcess.on("close", (code) => {
-      if (code === 0) {
-        console.log("Bot restarted successfully.");
-        ctx.send("Bot restarted successfully.");
-      } else {
-        console.error(`Bot restart failed with exit code ${code}.`);
-        ctx.send(`Bot restart failed with exit code ${code}.`);
-      }
-    });
+    await ctx.send(`Restart command executed with PID: ${restartProcess.pid}`);
   },
 };
 
