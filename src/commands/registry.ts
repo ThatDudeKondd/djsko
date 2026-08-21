@@ -6,6 +6,7 @@ import { jsCommands } from "./js";
 import { managementCommands } from "./management";
 import { mjsCommands } from "./mjs";
 import { repeatCommands } from "./repeat";
+import { restartCommands } from "./restart";
 import { rootCommands } from "./root";
 import { sayCommands } from "./say";
 import { shellCommands } from "./shell";
@@ -34,6 +35,7 @@ export const COMMANDS: Command[] = [
   ...repeatCommands,
   ...sayCommands,
   ...dmCommands,
+  ...restartCommands,
 ];
 
 const LOOKUP = new Map<string, Command>();
