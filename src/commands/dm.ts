@@ -9,7 +9,7 @@ const dmCommand: Command = {
     const message = args.slice(1).join(" ");
 
     await ctx.send(
-      `Attempting to send a DM to <@${userId} with the content of ${message}`,
+      `Attempting to send a DM to <@${userId}> with the content of ${message}`,
     );
   },
 };
