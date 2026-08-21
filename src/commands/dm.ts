@@ -8,9 +8,13 @@ const dmCommand: Command = {
     const userId = args[0];
     const message = args.slice(1).join(" ");
 
-    await ctx.send(
-      `Attempting to send a DM to <@${userId}> with the content of ${message}`,
-    );
+    try {
+      const user = await ctx.client.users.fetch(userId);
+      await user.send(message);
+      await ctx.reply(`Sent DM to <@${userId}>: ${message}`);
+    } catch (err) {
+      await ctx.reply(`Failed to send DM to <@${userId}>: ${err}`);
+    }
   },
 };
 
