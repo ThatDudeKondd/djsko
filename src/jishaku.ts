@@ -395,7 +395,7 @@ export class Jishaku<C = AnyClient> {
     try {
       await handler(ctx);
       console.log(
-        `[djsk] Command ${ctx.command} completed successfully. Executed by ${ctx.author.id} in ${ctx.guild?.id ?? "DM"}.`,
+        `[djsk] Command ${ctx.command ?? "status"} completed successfully. Executed by ${ctx.author.id} in ${ctx.guild?.id ?? "DM"}.`,
       );
     } catch (error) {
       await this.reportError(ctx, error);
