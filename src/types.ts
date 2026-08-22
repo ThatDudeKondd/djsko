@@ -123,6 +123,15 @@ export interface JishakuConfig {
    */
   catchProcessErrors?: boolean;
   /**
+   * IDs of users allowed to use `jsk sh` specifically. Since shell commands run directly on
+   * the host, this lets you keep general djsk access (eval, `jsk cat`, etc.) open to a wider
+   * group of trusted `owners` while restricting the shell itself to a smaller, more trusted
+   * subset. When omitted, falls back to `owners` -- i.e. anyone who can use djsk can also use
+   * shell, same as if this option didn't exist. Resolved the same way `owners` is (explicit
+   * list, then app owner/team, then selfbot fallback).
+   */
+  shellOwners?: string[];
+  /**
    * Shell command `jsk update` runs (e.g. your project's own deploy/update script).
    * When omitted, `jsk update` replies that no update command is configured instead
    * of doing nothing silently. Default: `undefined`.
@@ -134,6 +143,7 @@ export interface JishakuConfig {
 export interface ResolvedConfig {
   prefix: string;
   owners: string[] | null;
+  shellOwners: string[] | null;
   encoding: Encoding;
   consoleLog: boolean;
   slashCommandName: string;

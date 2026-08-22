@@ -64,6 +64,7 @@ function resolveConfig(config: JishakuConfig): ResolvedConfig {
   return {
     prefix: config.prefix ?? ".",
     owners: config.owners ?? null,
+    shellOwners: config.shellOwners ?? null,
     encoding: config.encoding ?? "UTF-8",
     consoleLog: config.consoleLog ?? true,
     slashCommandName: config.slashCommandName ?? "jsk",
@@ -101,6 +102,7 @@ function resolveConfig(config: JishakuConfig): ResolvedConfig {
 export class Jishaku<C = AnyClient> {
   readonly config: ResolvedConfig;
   readonly owners: OwnerResolver;
+  readonly shellOwners: OwnerResolver;
   private readonly scrubber: SecretScrubber;
 
   /** Whether REPL variable retention is enabled (`jsk retain`). */
@@ -119,6 +121,13 @@ export class Jishaku<C = AnyClient> {
   ) {
     this.config = resolveConfig(config);
     this.owners = new OwnerResolver(client, this.config.owners);
+    // Falls back to the general owners config when shellOwners isn't set, so behavior is
+    // unchanged for anyone who doesn't configure it -- shell access matches owners exactly,
+    // same as before this option existed.
+    this.shellOwners = new OwnerResolver(
+      client,
+      this.config.shellOwners ?? this.config.owners,
+    );
     this.scrubber = new SecretScrubber(client, {
       patterns: this.config.secretPatterns,
       values: this.config.secretValues,
