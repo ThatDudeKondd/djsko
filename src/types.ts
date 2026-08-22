@@ -137,6 +137,12 @@ export interface JishakuConfig {
    * of doing nothing silently. Default: `undefined`.
    */
   updateCommand?: string;
+  /**
+   * Shell command `jsk restart` runs (e.g. `systemctl --user restart my-bot.service`,
+   * `pm2 restart my-bot`, or a custom script). When omitted, `jsk restart` replies that
+   * no restart command is configured instead of doing nothing silently. Default: `undefined`.
+   */
+  restartCommand?: string;
 }
 
 /** Fully-resolved configuration with defaults applied. */
@@ -157,4 +163,5 @@ export interface ResolvedConfig {
   evalModuleDir: string;
   catchProcessErrors: boolean;
   updateCommand: string | null;
+  restartCommand: string | null;
 }

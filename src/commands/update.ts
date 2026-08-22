@@ -46,17 +46,11 @@ const update: Command = {
     });
 
     updateProcess.on("close", async (code) => {
-      const relevantLines = output
-        .split("\n")
-        .filter(
-          (line) =>
-            line.includes("Changes found in") ||
-            line.includes("No changes in either repo") ||
-            line.includes("Deploy complete") ||
-            line.includes("Another deploy is already running"),
-        );
-
-      const summary = relevantLines.join("\n").trim();
+      // Generic tail rather than matching specific log phrases -- those
+      // were tied to one project's deploy script wording and would show
+      // nothing for any other project's output.
+      const lines = output.trim().split("\n").filter(Boolean);
+      const summary = lines.slice(-15).join("\n");
 
       if (code === 0) {
         console.log(`[UPDATE]\n${summary}`);

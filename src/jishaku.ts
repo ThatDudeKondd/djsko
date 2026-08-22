@@ -78,6 +78,7 @@ function resolveConfig(config: JishakuConfig): ResolvedConfig {
     evalModuleDir: config.evalModuleDir ?? process.cwd(),
     catchProcessErrors: config.catchProcessErrors ?? true,
     updateCommand: config.updateCommand ?? null,
+    restartCommand: config.restartCommand ?? null,
   };
 }
 
