@@ -1,4 +1,4 @@
-import type { Client, Interaction, Message } from 'discord.js'
+import type { Client, Interaction, Message } from "discord.js";
 
 // djsk is duck-typed at runtime and works with discord.js v13/v14 and the selfbot forks
 // (discord.js-selfbot-v13, discord.js-selfbot-youtsuho-v13) alike — none of these types are
@@ -20,19 +20,19 @@ import type { Client, Interaction, Message } from 'discord.js'
 // exact same declaration — no mismatch possible.
 
 /** A discord.js (or compatible fork) Client. See the module-level comment for why this matters. */
-export type AnyClient = Client
+export type AnyClient = Client;
 
 /** A discord.js (or compatible fork) Message. See the module-level comment for why this matters. */
-export type AnyMessage = Message
+export type AnyMessage = Message;
 
 /**
  * A discord.js (or compatible fork) Interaction (chat input command or modal submit).
  * See the module-level comment for why this matters.
  */
-export type AnyInteraction = Interaction
+export type AnyInteraction = Interaction;
 
 /** Text decoding used when reading shell output. */
-export type Encoding = 'UTF-8' | 'Shift_JIS' | (string & {})
+export type Encoding = "UTF-8" | "Shift_JIS" | (string & {});
 
 /**
  * Overrides which shell/terminal `jsk sh` spawns, instead of djsk's auto-detected default
@@ -42,52 +42,52 @@ export type Encoding = 'UTF-8' | 'Shift_JIS' | (string & {})
  */
 export interface ShellOverride {
   /** The command to spawn (e.g. `'pwsh'`, `'zsh'`, or a full path). */
-  command: string
+  command: string;
   /** Arguments passed before the code to run — the code itself is appended as the final argument. */
-  args?: string[]
+  args?: string[];
   /** Prompt shown before the command in the rendered output. Default: `'$'`. */
-  ps1?: string
+  ps1?: string;
   /** Codeblock language used for the rendered output's syntax highlighting. Default: `'ansi'`. */
-  highlight?: string
+  highlight?: string;
 }
 
 /** User-facing configuration passed to {@link Jishaku}. */
 export interface JishakuConfig {
   /** Command prefix. The root command is `${prefix}jsk`. Default: `.` */
-  prefix?: string
+  prefix?: string;
   /**
    * IDs of users allowed to use djsk.
    * When omitted, djsk resolves the application owner/team (or the selfbot user itself).
    */
-  owners?: string[]
+  owners?: string[];
   /** Encoding used to decode shell output. Default: `UTF-8`. `Shift_JIS` is supported natively. */
-  encoding?: Encoding
+  encoding?: Encoding;
   /** Whether djsk prints init/update notices and errors to the console. Default: `true`. */
-  consoleLog?: boolean
+  consoleLog?: boolean;
   /**
    * Name of the slash command djsk registers/handles for interaction-based use (see
    * {@link getSlashCommandData} and {@link Jishaku.onInteractionCreate}). Default: `jsk`.
    */
-  slashCommandName?: string
+  slashCommandName?: string;
   /**
    * Security mode. When `true`, djsk best-effort redacts secrets — the Discord token,
    * secret-like `process.env` values, `.env` assignments and common credential formats —
    * from everything it sends, replies with, edits, or logs (including `jsk js` results,
    * `jsk cat`/`jsk curl` output and shell output). Default: `false`.
    */
-  security?: boolean
+  security?: boolean;
   /**
    * Extra credential regexes to redact in security mode (e.g. provider-specific API key
    * formats such as AWS/GitHub). The built-in patterns only cover Discord tokens & webhooks,
    * bearer tokens and PEM private keys, so add the formats your bot handles here.
    */
-  secretPatterns?: RegExp[]
+  secretPatterns?: RegExp[];
   /** Extra exact strings to always redact in security mode. */
-  secretValues?: string[]
+  secretValues?: string[];
   /** Timeout (ms) after which a silent `jsk sh` process is killed. Default: `120000`. */
-  shellTimeout?: number
+  shellTimeout?: number;
   /** Whether `jsk shutdown` calls `process.exit(0)` after destroying the client. Default: `false`. */
-  exitOnShutdown?: boolean
+  exitOnShutdown?: boolean;
   /**
    * Hard cap (ms) on any single *synchronous* stretch of a `jsk js` eval — protects against a
    * runaway loop (`while (true) {}`) freezing the whole bot process, which `jsk cancel` can't
@@ -96,16 +96,16 @@ export interface JishakuConfig {
    * (network calls, timers, ...) — that's unbounded, and separately stoppable via `jsk cancel`.
    * Default: `10000`.
    */
-  evalTimeout?: number
+  evalTimeout?: number;
   /** Overrides which shell `jsk sh` spawns. Default: djsk's platform auto-detection. */
-  shell?: ShellOverride
+  shell?: ShellOverride;
   /**
    * Base directory `jsk cjs`'s `require` and `jsk mjs`'s `import` resolve modules from —
    * point this at your bot's project root if djsk is ever invoked with a different `cwd`.
    * `jsk mjs` also writes its transient per-eval module file under here (in a `.djsk-tmp`
    * subdirectory, cleaned up immediately after each eval). Default: `process.cwd()`.
    */
-  evalModuleDir?: string
+  evalModuleDir?: string;
   /**
    * When `true`, djsk installs process-wide `uncaughtException`/`unhandledRejection`
    * listeners for the life of the process, so an error that escapes the awaited chain a `jsk
@@ -121,23 +121,30 @@ export interface JishakuConfig {
    * (e.g. for a process manager or crash reporter), set this to `false` so djsk doesn't shadow
    * them. Default: `true`.
    */
-  catchProcessErrors?: boolean
+  catchProcessErrors?: boolean;
+  /**
+   * Shell command `jsk update` runs (e.g. your project's own deploy/update script).
+   * When omitted, `jsk update` replies that no update command is configured instead
+   * of doing nothing silently. Default: `undefined`.
+   */
+  updateCommand?: string;
 }
 
 /** Fully-resolved configuration with defaults applied. */
 export interface ResolvedConfig {
-  prefix: string
-  owners: string[] | null
-  encoding: Encoding
-  consoleLog: boolean
-  slashCommandName: string
-  shellTimeout: number
-  exitOnShutdown: boolean
-  security: boolean
-  secretPatterns: RegExp[]
-  secretValues: string[]
-  evalTimeout: number
-  shell: ShellOverride | null
-  evalModuleDir: string
-  catchProcessErrors: boolean
+  prefix: string;
+  owners: string[] | null;
+  encoding: Encoding;
+  consoleLog: boolean;
+  slashCommandName: string;
+  shellTimeout: number;
+  exitOnShutdown: boolean;
+  security: boolean;
+  secretPatterns: RegExp[];
+  secretValues: string[];
+  evalTimeout: number;
+  shell: ShellOverride | null;
+  evalModuleDir: string;
+  catchProcessErrors: boolean;
+  updateCommand: string | null;
 }

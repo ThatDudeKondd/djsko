@@ -4,21 +4,26 @@ import { spawn } from "node:child_process";
 
 const update: Command = {
   name: "update",
-  summary: "Updates the bot.",
+  summary: "Runs your project's configured update/deploy command.",
 
   async handler(ctx) {
+    const updateCommand = ctx.jsk.config.updateCommand;
+
+    if (!updateCommand) {
+      await ctx.reply(
+        "No update command configured. Set `updateCommand` in djsk's config to your project's deploy/update script.",
+      );
+      return;
+    }
+
     await ctx.reply("Updating the bot...");
 
-    const updateProcess = spawn(
-      "/opt/sarp-project/SARP-Utilities/deploy-sarp.sh",
-      [],
-      {
-        env: {
-          ...process.env,
-          XDG_RUNTIME_DIR: `/run/user/${process.getuid!()}`,
-        },
+    const updateProcess = spawn(updateCommand, [], {
+      env: {
+        ...process.env,
+        XDG_RUNTIME_DIR: `/run/user/${process.getuid!()}`,
       },
-    );
+    });
 
     let output = "";
     let errorOutput = "";
