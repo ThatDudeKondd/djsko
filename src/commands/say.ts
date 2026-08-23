@@ -3,6 +3,7 @@ import type { Command } from "./registry";
 const sayCommand: Command = {
   name: "say",
   summary: "Says the given message.",
+  usage: "<message...>",
   async handler(ctx) {
     const args = ctx.args;
     const message = args.join(" ");

@@ -3,6 +3,7 @@ import type { Command } from "./registry";
 const dmCommand: Command = {
   name: "dm",
   summary: "Sends a direct message to a user.",
+  usage: "<user id> <message...>",
   async handler(ctx) {
     const args = ctx.args;
     const userId = args[0];

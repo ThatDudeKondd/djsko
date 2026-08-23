@@ -20,6 +20,12 @@ export interface Command {
   aliases?: string[];
   /** One-line description shown by `jsk help`. */
   summary: string;
+  /**
+   * Argument hint shown by `jsk help`, e.g. `<user id> <message...>`.
+   * Omit for commands that take no arguments. `<required>`, `[optional]`,
+   * `...` for "rest of the input" -- same convention as most CLI --help output.
+   */
+  usage?: string;
   /** Command implementation. */
   handler: (ctx: Context) => Promise<void> | void;
 }

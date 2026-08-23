@@ -14,6 +14,7 @@ const shellCommand: Command = {
   name: "sh",
   aliases: ["shell", "bash", "cmd", "powershell", "terminal"],
   summary: "Executes a command in the system shell, streaming its output.",
+  usage: "<command...>",
   async handler(ctx) {
     const code = ctx.codeblock.content;
     if (!code.trim()) {

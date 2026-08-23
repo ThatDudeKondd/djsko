@@ -3,6 +3,7 @@ import { COMMANDS, type Command } from "./registry";
 const repeatCommand: Command = {
   name: "repeat",
   summary: "Repeats the given command a set amount of times.",
+  usage: "<count> <command> [args...]",
   async handler(ctx) {
     const args = ctx.args;
     const count = Number(args[0]);
