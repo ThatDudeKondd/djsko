@@ -19,6 +19,7 @@ const update: Command = {
     await ctx.reply("Updating the bot...");
 
     const updateProcess = spawn(updateCommand, [], {
+      shell: true,
       env: {
         ...process.env,
         XDG_RUNTIME_DIR: `/run/user/${process.getuid!()}`,

@@ -24,6 +24,7 @@ const restart: Command = {
     // event ever fires. Fire-and-forget with a PID confirmation is the
     // most this command can reliably promise.
     const restartProcess = spawn(restartCommand, [], {
+      shell: true,
       stdio: "inherit",
       env: {
         ...process.env,
