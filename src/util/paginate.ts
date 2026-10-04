@@ -66,8 +66,9 @@ export async function paginate(
       });
       paginateWithButtons(message, step, authorId);
       return;
-    } catch {
+    } catch (error) {
       // components rejected (e.g. selfbot) — fall through to reactions
+      console.error('[djsk] Button pagination failed, using reactions:', error)
     }
   }
 
