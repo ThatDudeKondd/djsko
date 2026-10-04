@@ -189,7 +189,7 @@ export class Context {
 
   /**
    * Sends a plain-text result, redacting the token. Content that exceeds Discord's message
-   * limit is sent as a single message with ⬅️/➡️ reaction pagination (see {@link paginate})
+   * limit is sent as a single message with ⬅️/➡️ button pagination (see {@link paginate})
    * instead, falling back to a file attachment only when it's too long even for that.
    * Mirrors jishaku's `jsk py` handling.
    */
@@ -217,7 +217,7 @@ export class Context {
 
   /**
    * Sends `text` wrapped in a codeblock. Content that needs more than one page is sent as a
-   * single ⬅️/➡️ reaction-paginated message (see {@link paginate}) rather than one message per
+   * single ⬅️/➡️ button-paginated message (see {@link paginate}) rather than one message per
    * page, and falls back to a file attachment when it would need too many pages even for that.
    */
   async sendCodeblock(text: string, language = '', filename = 'output.txt'): Promise<void> {
