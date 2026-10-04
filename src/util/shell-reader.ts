@@ -101,7 +101,8 @@ export class ShellReader {
         this.highlight = 'cmd'
       }
     } else {
-      command = process.env.SHELL || '/bin/bash'
+      // Minimal images (e.g. node:*-alpine) have no bash and no $SHELL; fall back to sh.
+      command = process.env.SHELL || (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
       args = ['-c', code]
       this.ps1 = '$'
       this.highlight = 'ansi'
@@ -119,8 +120,9 @@ export class ShellReader {
         if (this.inactivityTimer) clearTimeout(this.inactivityTimer)
         resolve(exitCode ?? -1)
       })
-      this.process.on('error', () => {
+      this.process.on('error', (error) => {
         if (this.inactivityTimer) clearTimeout(this.inactivityTimer)
+        options.onLine(`[status] Failed to start ${command}: ${error.message}`)
         resolve(-1)
       })
     })
