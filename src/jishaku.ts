@@ -79,6 +79,7 @@ function resolveConfig(config: JishakuConfig): ResolvedConfig {
     catchProcessErrors: config.catchProcessErrors ?? true,
     updateCommand: config.updateCommand ?? null,
     restartCommand: config.restartCommand ?? null,
+    promoteCommand: config.promoteCommand ?? null,
   };
 }
 

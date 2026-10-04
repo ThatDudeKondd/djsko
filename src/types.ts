@@ -143,6 +143,12 @@ export interface JishakuConfig {
    * no restart command is configured instead of doing nothing silently. Default: `undefined`.
    */
   restartCommand?: string;
+  /**
+   * Shell command `jsk promote` runs (e.g. a script that fast-forwards `main` to `testing`
+   * and deploys). When omitted, `jsk promote` replies that no promote command is configured.
+   * Default: `undefined`.
+   */
+  promoteCommand?: string;
 }
 
 /** Fully-resolved configuration with defaults applied. */
@@ -164,4 +170,5 @@ export interface ResolvedConfig {
   catchProcessErrors: boolean;
   updateCommand: string | null;
   restartCommand: string | null;
+  promoteCommand: string | null;
 }
