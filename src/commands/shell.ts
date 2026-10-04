@@ -59,8 +59,10 @@ const shellCommand: Command = {
         } else {
           message = await ctx.send(content);
         }
-      } catch {
-        // transient send/edit failure; the next flush will retry
+      } catch (error) {
+        // Retried on the next flush, but logged: a persistent failure here
+        // otherwise just leaves a stale message with no explanation.
+        console.error("[djsk] jsk sh: failed to send/edit output:", error);
         dirty = true;
       }
     };
@@ -123,7 +125,8 @@ const shellCommand: Command = {
       message = message
         ? await ctx.edit(message, finalContent)
         : await ctx.send(finalContent);
-    } catch {
+    } catch (error) {
+      console.error("[djsk] jsk sh: failed to show final output:", error);
       return;
     }
 
