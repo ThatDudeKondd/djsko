@@ -1,33 +1,33 @@
-import type { Context } from "../context";
-import { cjsCommands } from "./cjs";
-import { dmCommands } from "./dm";
-import { filesystemCommands } from "./filesystem";
-import { jsCommands } from "./js";
-import { managementCommands } from "./management";
-import { mjsCommands } from "./mjs";
-import { repeatCommands } from "./repeat";
-import { restartCommands } from "./restart";
-import { rootCommands } from "./root";
-import { sayCommands } from "./say";
-import { shellCommands } from "./shell";
-import { updateCommands } from "./update";
+import type { Context } from '../context'
+import { cjsCommands } from './cjs'
+import { dmCommands } from './dm'
+import { filesystemCommands } from './filesystem'
+import { jsCommands } from './js'
+import { managementCommands } from './management'
+import { mjsCommands } from './mjs'
+import { repeatCommands } from './repeat'
+import { restartCommands } from './restart'
+import { rootCommands } from './root'
+import { sayCommands } from './say'
+import { shellCommands } from './shell'
+import { updateCommands } from './update'
 
 /** A djsk subcommand under the `jsk` root. */
 export interface Command {
   /** Primary invocation name, e.g. `sh`. */
-  name: string;
+  name: string
   /** Alternative names, e.g. `['shell', 'bash']`. */
-  aliases?: string[];
+  aliases?: string[]
   /** One-line description shown by `jsk help`. */
-  summary: string;
+  summary: string
   /**
    * Argument hint shown by `jsk help`, e.g. `<user id> <message...>`.
    * Omit for commands that take no arguments. `<required>`, `[optional]`,
    * `...` for "rest of the input" -- same convention as most CLI --help output.
    */
-  usage?: string;
+  usage?: string
   /** Command implementation. */
-  handler: (ctx: Context) => Promise<void> | void;
+  handler: (ctx: Context) => Promise<void> | void
 }
 
 /** All registered commands, in help-display order. */
@@ -44,17 +44,17 @@ export const COMMANDS: Command[] = [
   ...dmCommands,
   ...restartCommands,
   ...updateCommands,
-];
+]
 
-const LOOKUP = new Map<string, Command>();
+const LOOKUP = new Map<string, Command>()
 for (const command of COMMANDS) {
-  LOOKUP.set(command.name.toLowerCase(), command);
+  LOOKUP.set(command.name.toLowerCase(), command)
   for (const alias of command.aliases ?? []) {
-    LOOKUP.set(alias.toLowerCase(), command);
+    LOOKUP.set(alias.toLowerCase(), command)
   }
 }
 
 /** Resolves a command by name or alias (case-insensitive). */
 export function resolveCommand(name: string): Command | undefined {
-  return LOOKUP.get(name.toLowerCase());
+  return LOOKUP.get(name.toLowerCase())
 }

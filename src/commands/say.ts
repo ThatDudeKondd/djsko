@@ -1,24 +1,24 @@
-import type { Command } from "./registry";
+import type { Command } from './registry'
 
 const sayCommand: Command = {
-  name: "say",
-  summary: "Says the given message.",
-  usage: "<message...>",
+  name: 'say',
+  summary: 'Says the given message.',
+  usage: '<message...>',
   async handler(ctx) {
-    const args = ctx.args;
-    const message = args.join(" ");
+    const args = ctx.args
+    const message = args.join(' ')
 
     try {
-      await ctx.message?.delete();
+      await ctx.message?.delete()
     } catch (err) {
-      const code = (err as { code?: unknown })?.code;
+      const code = (err as { code?: unknown })?.code
       if (code !== 10008) {
-        throw err;
+        throw err
       }
     }
 
-    await ctx.channel.send(message);
+    await ctx.channel.send(message)
   },
-};
+}
 
-export const sayCommands: Command[] = [sayCommand];
+export const sayCommands: Command[] = [sayCommand]
